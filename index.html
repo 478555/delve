@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Delve</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0d0d0d;
+    color: #ccc;
+    font-family: 'Courier New', Courier, monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    min-height: 100vh;
+    padding: 24px 12px;
+    user-select: none;
+  }
+
+  #game {
+    width: 100%;
+    max-width: 820px;
+  }
+
+  /* Stats bar */
+  #stats {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 10px 16px;
+    background: #111;
+    border: 1px solid #2a2a2a;
+    border-bottom: none;
+    font-size: 14px;
+    flex-wrap: wrap;
+  }
+  #stats .title {
+    font-size: 16px;
+    font-weight: bold;
+    color: #fff;
+    letter-spacing: 0.15em;
+    margin-right: 8px;
+  }
+  #stats .stat { color: #888; }
+  #stats .stat span { color: #eee; }
+  #hp-bar { letter-spacing: 0; }
+  .hp-full { color: #e55; }
+  .hp-empty { color: #333; }
+  #floor-label { margin-left: auto; color: #666; font-size: 13px; }
+
+  /* Map */
+  #map {
+    background: #0d0d0d;
+    border: 1px solid #2a2a2a;
+    padding: 8px 12px;
+    overflow-x: auto;
+    line-height: 1.35;
+    font-size: 15px;
+    white-space: pre;
+  }
+
+  /* Tile colours */
+  .cw { color: #3a3a3a; }   /* wall */
+  .cf { color: #1e1e1e; }   /* floor */
+  .cs { color: #55aaff; }   /* stairs */
+  .cp { color: #ffffff; font-weight: bold; } /* player */
+  .cg { color: #e55; }      /* goblin */
+  .co { color: #e87; }      /* orc */
+  .ct { color: #c44; font-weight: bold; }    /* troll */
+  .ci { color: #4d4; }      /* potion */
+  .ck { color: #fa0; }      /* weapon */
+  .ca { color: #88f; }      /* armor */
+
+  /* Log */
+  #log {
+    background: #111;
+    border: 1px solid #2a2a2a;
+    border-top: none;
+    padding: 8px 16px;
+    font-size: 13px;
+    min-height: 100px;
+  }
+  #log .log-line { color: #666; line-height: 1.7; }
+  #log .log-line:last-child { color: #aaa; }
+  #log .log-dmg { color: #e55; }
+  #log .log-item { color: #4d4; }
+  #log .log-floor { color: #55aaff; }
+  #log .log-die { color: #f44; font-weight: bold; }
+
+  /* Overlays */
+  #overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+  }
+  #overlay.show { display: flex; }
+  #overlay-box {
+    background: #111;
+    border: 1px solid #333;
+    padding: 40px 48px;
+    text-align: center;
+    max-width: 340px;
+    width: 90%;
+  }
+  #overlay-box h2 { font-size: 22px; letter-spacing: 0.1em; margin-bottom: 10px; }
+  #overlay-box p { color: #666; font-size: 13px; margin-bottom: 24px; line-height: 1.7; }
+  #overlay-box button {
+    background: #1e1e1e;
+    color: #ccc;
+    border: 1px solid #333;
+    padding: 10px 28px;
+    font-family: inherit;
+    font-size: 14px;
+    cursor: pointer;
+    letter-spacing: 0.08em;
+  }
+  #overlay-box button:hover { background: #2a2a2a; color: #fff; }
+  .over-title-dead { color: #e55; }
+  .over-title-win  { color: #55aaff; }
+
+  #hint {
+    margin-top: 10px;
+    font-size: 12px;
+    color: #333;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<div id="game">
+  <div id="stats">
+    <span class="title">DELVE</span>
+    <span class="stat">HP <span id="hp-bar"></span></span>
+    <span class="stat">ATK <span id="stat-atk"></span></span>
+    <span class="stat">DEF <span id="stat-def"></span></span>
+    <span id="floor-label"></span>
+  </div>
+  <div id="map"></div>
+  <div id="log"></div>
+</div>
+
+<div id="hint">move: arrow keys / wasd &nbsp;|&nbsp; pick up items by walking over them &nbsp;|&nbsp; reach &gt; to descend</div>
+
+<div id="overlay">
+  <div id="overlay-box">
+    <h2 id="overlay-title"></h2>
+    <p id="overlay-msg"></p>
+    <button id="overlay-btn">[ restart ]</button>
+  </div>
+</div>
+
+<script>
+// ─── Config ─────────────────────────────────────────────────────────────────
+const W = 80, H = 28;
+const TILE = { WALL: 0, FLOOR: 1, STAIRS: 2 };
+
+const ENEMY_DEFS = [
+  { char: 'g', name: 'Goblin', hp: 8,  atk: 3, def: 0, minFloor: 1, cls: 'cg' },
+  { char: 'o', name: 'Orc',    hp: 14, atk: 5, def: 1, minFloor: 2, cls: 'co' },
+  { char: 't', name: 'Troll',  hp: 22, atk: 8, def: 2, minFloor: 3, cls: 'ct' },
+];
+
+const ITEM_DEFS = [
+  { char: '!', name: 'Potion',    effect: 'hp',  value: 10, cls: 'ci' },
+  { char: '/', name: 'Weapon',    effect: 'atk', value: 2,  cls: 'ck' },
+  { char: ']', name: 'Armor',     effect: 'def', value: 1,  cls: 'ca' },
+];
+
+// ─── State ──────────────────────────────────────────────────────────────────
+let map, rooms, player, enemies, items, messages, gameOver;
+
+// ─── Utilities ──────────────────────────────────────────────────────────────
+const rand = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+function log(msg, cls = '') {
+  messages.push({ msg, cls });
+  if (messages.length > 8) messages.shift();
+  renderLog();
+}
+
+// ─── Dungeon Generation ──────────────────────────────────────────────────────
+function newMap() {
+  const m = [];
+  for (let y = 0; y < H; y++) { m.push([]); for (let x = 0; x < W; x++) m[y].push(TILE.WALL); }
+  return m;
+}
+
+function carveRoom(m, room) {
+  for (let y = room.y; y < room.y + room.h; y++)
+    for (let x = room.x; x < room.x + room.w; x++)
+      m[y][x] = TILE.FLOOR;
+}
+
+function carveCorridor(m, x1, y1, x2, y2) {
+  let cx = x1, cy = y1;
+  // horizontal first
+  while (cx !== x2) { m[cy][cx] = TILE.FLOOR; cx += (x2 > cx) ? 1 : -1; }
+  // then vertical
+  while (cy !== y2) { m[cy][cx] = TILE.FLOOR; cy += (y2 > cy) ? 1 : -1; }
+  m[cy][cx] = TILE.FLOOR;
+}
+
+function overlaps(a, b, margin = 1) {
+  return !(a.x + a.w + margin <= b.x || b.x + b.w + margin <= a.x ||
+           a.y + a.h + margin <= b.y || b.y + b.h + margin <= a.y);
+}
+
+function generateDungeon(floor) {
+  map = newMap();
+  rooms = [];
+
+  const attempts = 200;
+  const targetRooms = rand(7, 11);
+
+  for (let i = 0; i < attempts && rooms.length < targetRooms; i++) {
+    const rw = rand(5, 13), rh = rand(4, 8);
+    const rx = rand(1, W - rw - 2), ry = rand(1, H - rh - 2);
+    const room = { x: rx, y: ry, w: rw, h: rh };
+    if (!rooms.some(r => overlaps(r, room))) {
+      if (rooms.length > 0) {
+        const prev = rooms[rooms.length - 1];
+        const cx1 = Math.floor(prev.x + prev.w / 2), cy1 = Math.floor(prev.y + prev.h / 2);
+        const cx2 = Math.floor(room.x + room.w / 2), cy2 = Math.floor(room.y + room.h / 2);
+        carveCorridor(map, cx1, cy1, cx2, cy2);
+      }
+      carveRoom(map, room);
+      rooms.push(room);
+    }
+  }
+
+  // Place stairs in center of last room
+  const last = rooms[rooms.length - 1];
+  const sx = Math.floor(last.x + last.w / 2), sy = Math.floor(last.y + last.h / 2);
+  map[sy][sx] = TILE.STAIRS;
+
+  // Enemies
+  enemies = [];
+  const eligible = ENEMY_DEFS.filter(e => e.minFloor <= floor);
+  const numEnemies = rand(3 + floor, 5 + floor * 2);
+  for (let i = 0; i < numEnemies; i++) {
+    const pos = randomFloorTile(rooms.slice(1)); // skip first room (player starts there)
+    if (!pos) continue;
+    const def = eligible[rand(0, eligible.length - 1)];
+    enemies.push({ ...pos, hp: def.hp + floor - 1, atk: def.atk, def: def.def, char: def.char, name: def.name, cls: def.cls });
+  }
+
+  // Items
+  items = [];
+  const numItems = rand(3, 6);
+  for (let i = 0; i < numItems; i++) {
+    const pos = randomFloorTile(rooms);
+    if (!pos) continue;
+    const def = ITEM_DEFS[rand(0, ITEM_DEFS.length - 1)];
+    items.push({ ...pos, ...def });
+  }
+}
+
+function randomFloorTile(roomList) {
+  for (let tries = 0; tries < 100; tries++) {
+    const room = roomList[rand(0, roomList.length - 1)];
+    const x = rand(room.x, room.x + room.w - 1);
+    const y = rand(room.y, room.y + room.h - 1);
+    if (map[y][x] === TILE.FLOOR && !entityAt(x, y)) return { x, y };
+  }
+  return null;
+}
+
+function entityAt(x, y) {
+  if (player && player.x === x && player.y === y) return 'player';
+  if (enemies.some(e => e.x === x && e.y === y)) return 'enemy';
+  if (items.some(i => i.x === x && i.y === y)) return 'item';
+  return null;
+}
+
+// ─── Init ────────────────────────────────────────────────────────────────────
+function initGame() {
+  gameOver = false;
+  messages = [];
+  player = { x: 0, y: 0, hp: 30, maxHp: 30, atk: 5, def: 1, floor: 1 };
+  generateDungeon(1);
+  spawnPlayer();
+  log('You descend into the dungeon. Good luck.', 'log-floor');
+  render();
+  document.getElementById('overlay').classList.remove('show');
+}
+
+function spawnPlayer() {
+  const first = rooms[0];
+  player.x = Math.floor(first.x + first.w / 2);
+  player.y = Math.floor(first.y + first.h / 2);
+}
+
+// ─── Input ───────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (gameOver) return;
+  const dirs = {
+    ArrowUp: [0,-1], ArrowDown: [0,1], ArrowLeft: [-1,0], ArrowRight: [1,0],
+    w: [0,-1], s: [0,1], a: [-1,0], d: [1,0],
+    W: [0,-1], S: [0,1], A: [-1,0], D: [1,0],
+  };
+  const dir = dirs[e.key];
+  if (!dir) return;
+  e.preventDefault();
+  tryMove(dir[0], dir[1]);
+});
+
+// ─── Movement & Actions ───────────────────────────────────────────────────────
+function tryMove(dx, dy) {
+  const nx = player.x + dx, ny = player.y + dy;
+  if (nx < 0 || nx >= W || ny < 0 || ny >= H) return;
+  const tile = map[ny][nx];
+  if (tile === TILE.WALL) return;
+
+  // Check enemy
+  const enemy = enemies.find(e => e.x === nx && e.y === ny);
+  if (enemy) { attackEnemy(enemy); enemyTurn(); render(); return; }
+
+  // Check item
+  const item = items.find(i => i.x === nx && i.y === ny);
+
+  // Move
+  player.x = nx; player.y = ny;
+
+  if (item) pickUp(item);
+
+  // Check stairs
+  if (tile === TILE.STAIRS) {
+    nextFloor();
+    return;
+  }
+
+  enemyTurn();
+  render();
+}
+
+function attackEnemy(enemy) {
+  const dmg = Math.max(1, player.atk + rand(0, 2) - enemy.def);
+  enemy.hp -= dmg;
+  log(`You hit ${enemy.name} for <b>${dmg}</b> dmg.`, 'log-dmg');
+  if (enemy.hp <= 0) {
+    enemies = enemies.filter(e => e !== enemy);
+    log(`${enemy.name} is slain!`);
+  }
+}
+
+function pickUp(item) {
+  items = items.filter(i => i !== item);
+  if (item.effect === 'hp') {
+    const healed = Math.min(item.value, player.maxHp - player.hp);
+    player.hp = Math.min(player.maxHp, player.hp + item.value);
+    log(`You drink a Potion. +${healed} HP.`, 'log-item');
+  } else if (item.effect === 'atk') {
+    player.atk += item.value;
+    log(`You grab a Weapon. ATK +${item.value}.`, 'log-item');
+  } else if (item.effect === 'def') {
+    player.def += item.value;
+    log(`You don armor. DEF +${item.value}.`, 'log-item');
+  }
+}
+
+function nextFloor() {
+  player.floor++;
+  generateDungeon(player.floor);
+  spawnPlayer();
+  log(`You descend to floor ${player.floor}.`, 'log-floor');
+  render();
+}
+
+// ─── Enemy AI ─────────────────────────────────────────────────────────────────
+function enemyTurn() {
+  for (const e of enemies) {
+    // Step toward player (simple: pick axis with greater distance)
+    const dx = player.x - e.x, dy = player.y - e.y;
+    let mx = 0, my = 0;
+
+    if (Math.abs(dx) >= Math.abs(dy)) mx = dx > 0 ? 1 : -1;
+    else my = dy > 0 ? 1 : -1;
+
+    const nx = e.x + mx, ny = e.y + my;
+    const tile = map[ny]?.[nx];
+
+    if (nx === player.x && ny === player.y) {
+      // attack player
+      const dmg = Math.max(1, e.atk + rand(0, 1) - player.def);
+      player.hp -= dmg;
+      log(`${e.name} hits you for <b>${dmg}</b> dmg.`, 'log-dmg');
+      if (player.hp <= 0) { endGame(false); return; }
+    } else if (tile && tile !== TILE.WALL && !enemies.some(o => o !== e && o.x === nx && o.y === ny)) {
+      e.x = nx; e.y = ny;
+    }
+  }
+}
+
+// ─── Rendering ────────────────────────────────────────────────────────────────
+function render() {
+  renderStats();
+  renderMap();
+  renderLog();
+}
+
+function renderStats() {
+  const filled = Math.round((player.hp / player.maxHp) * 10);
+  const bar = `<span class="hp-full">${'█'.repeat(filled)}</span><span class="hp-empty">${'░'.repeat(10 - filled)}</span> ${player.hp}/${player.maxHp}`;
+  document.getElementById('hp-bar').innerHTML = bar;
+  document.getElementById('stat-atk').textContent = player.atk;
+  document.getElementById('stat-def').textContent = player.def;
+  document.getElementById('floor-label').textContent = `Floor ${player.floor}`;
+}
+
+function renderMap() {
+  // Build a lookup for entities
+  const enemyMap = {};
+  enemies.forEach(e => { enemyMap[`${e.x},${e.y}`] = e; });
+  const itemMap = {};
+  items.forEach(i => { itemMap[`${i.x},${i.y}`] = i; });
+
+  let html = '';
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const key = `${x},${y}`;
+      if (x === player.x && y === player.y) {
+        html += `<span class="cp">@</span>`;
+      } else if (enemyMap[key]) {
+        const e = enemyMap[key];
+        html += `<span class="${e.cls}">${e.char}</span>`;
+      } else if (itemMap[key]) {
+        const i = itemMap[key];
+        html += `<span class="${i.cls}">${i.char}</span>`;
+      } else {
+        const t = map[y][x];
+        if (t === TILE.WALL)   html += `<span class="cw">#</span>`;
+        else if (t === TILE.FLOOR)  html += `<span class="cf">.</span>`;
+        else if (t === TILE.STAIRS) html += `<span class="cs">&gt;</span>`;
+      }
+    }
+    html += '\n';
+  }
+  document.getElementById('map').innerHTML = html;
+}
+
+function renderLog() {
+  const el = document.getElementById('log');
+  el.innerHTML = messages.map(m =>
+    `<div class="log-line ${m.cls || ''}">› ${m.msg}</div>`
+  ).join('');
+}
+
+// ─── Game Over ────────────────────────────────────────────────────────────────
+function endGame(won) {
+  gameOver = true;
+  render();
+  const overlay = document.getElementById('overlay');
+  const title   = document.getElementById('overlay-title');
+  const msg     = document.getElementById('overlay-msg');
+  if (won) {
+    title.textContent = 'Victory';
+    title.className = 'over-title-win';
+    msg.textContent = `You escaped on floor ${player.floor}.`;
+  } else {
+    title.textContent = 'You Died';
+    title.className = 'over-title-dead';
+    msg.innerHTML = `Slain on floor ${player.floor}.<br>${player.hp} HP remaining — well, 0.`;
+    log('You have died.', 'log-die');
+    renderLog();
+  }
+  overlay.classList.add('show');
+}
+
+document.getElementById('overlay-btn').addEventListener('click', initGame);
+
+// ─── Start ────────────────────────────────────────────────────────────────────
+initGame();
+</script>
+</body>
+</html>
