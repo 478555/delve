@@ -330,6 +330,8 @@ const ITEM_DEFS=[
 let map_,rooms,player,enemies,items,msgs,dead,runOver;
 let combatEnemy=null,combatPhase=null;
 let inv=[];   // inventory array, max 6
+let explored; // fog of war: 2D Uint8Array, 1=seen before
+const VIEW_R=8; // sight radius in tiles
 
 // canvas / viewport
 let cellW=9,cellH=16,VW=60,VH=22;
@@ -413,6 +415,7 @@ function overlaps(a,b,p=1){
 
 function generateDungeon(){
   map_=blankMap(); rooms=[]; enemies=[]; items=[];
+  explored=Array.from({length:MAP_H},()=>new Uint8Array(MAP_W));
   const target=rand(14,18);
   for(let att=0;att<600&&rooms.length<target;att++){
     const rw=rand(5,14),rh=rand(4,9);
@@ -792,16 +795,20 @@ function renderMap(){
     for(let vx=0;vx<VW;vx++){
       const wx=vx+cam.x, wy=vy+cam.y;
       if(wx<0||wx>=MAP_W||wy<0||wy>=MAP_H) continue;
+      const dx=wx-player.x, dy=wy-player.y;
+      const visible=(dx*dx+dy*dy)<=VIEW_R*VIEW_R;
+      if(visible) explored[wy][wx]=1;
+      if(!visible&&!explored[wy][wx]) continue; // never seen — pure dark
       const key=wx+','+wy;
       let ch,col;
-      if(wx===player.x&&wy===player.y)      {ch='@';col=C.player;}
-      else if(eMap[key]){const e=eMap[key]; ch=e.char;col=e.col;}
-      else if(iMap[key]){const i=iMap[key]; ch=i.char;col=i.col;}
+      if(visible&&wx===player.x&&wy===player.y){ch='@';col=C.player;}
+      else if(visible&&eMap[key]){const e=eMap[key];ch=e.char;col=e.col;}
+      else if(visible&&iMap[key]){const i=iMap[key];ch=i.char;col=i.col;}
       else{
         const t=map_[wy][wx];
-        if(t===TILE.EXIT)  {ch='E';col=C.exit;}
-        else if(t===TILE.FLOOR){ch='.';col=C.floor;}
-        else               {ch='#';col=C.wall;}
+        if(t===TILE.EXIT)      {ch='E';col=visible?C.exit:'#1a2d3d';}
+        else if(t===TILE.FLOOR){ch='.';col=visible?C.floor:'#111111';}
+        else                   {ch='#';col=visible?C.wall:'#1e1e1e';}
       }
       ctx.fillStyle=col;
       ctx.fillText(ch,vx*cellW,vy*cellH);
