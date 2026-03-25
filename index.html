@@ -7,334 +7,374 @@
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  body {
+  html, body {
+    height: 100%;
     background: #0d0d0d;
     color: #ccc;
     font-family: 'Courier New', Courier, monospace;
+    overflow: hidden;
+  }
+
+  #shell {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: flex-start;
-    min-height: 100vh;
-    padding: 24px 12px;
-    user-select: none;
+    height: 100vh;
+    width: 100vw;
+    padding: 12px;
+    gap: 0;
   }
 
-  #game {
-    width: 100%;
-    max-width: 820px;
-  }
-
-  /* Stats bar */
+  /* ── Stats bar ── */
   #stats {
+    flex-shrink: 0;
     display: flex;
     align-items: center;
-    gap: 24px;
-    padding: 10px 16px;
+    gap: 20px;
+    padding: 8px 14px;
     background: #111;
     border: 1px solid #2a2a2a;
     border-bottom: none;
-    font-size: 14px;
-    flex-wrap: wrap;
+    font-size: 13px;
+    user-select: none;
   }
-  #stats .title {
-    font-size: 16px;
-    font-weight: bold;
-    color: #fff;
-    letter-spacing: 0.15em;
-    margin-right: 8px;
+  #stats .title { font-size: 15px; font-weight: bold; color: #fff; letter-spacing: 0.15em; }
+  #stats .stat  { color: #555; }
+  #stats .stat b { color: #ccc; font-weight: normal; }
+  .hp-full  { color: #cc3333; }
+  .hp-empty { color: #2a2a2a; }
+  #floor-label  { margin-left: auto; color: #444; font-size: 12px; }
+  #fs-btn {
+    background: none; border: 1px solid #2a2a2a; color: #444;
+    font-family: inherit; font-size: 11px; padding: 2px 8px;
+    cursor: pointer; letter-spacing: 0.05em;
   }
-  #stats .stat { color: #888; }
-  #stats .stat span { color: #eee; }
-  #hp-bar { letter-spacing: 0; }
-  .hp-full { color: #e55; }
-  .hp-empty { color: #333; }
-  #floor-label { margin-left: auto; color: #666; font-size: 13px; }
+  #fs-btn:hover { color: #aaa; border-color: #555; }
 
-  /* Map */
-  #map {
-    background: #0d0d0d;
+  /* ── Map ── */
+  #map-wrap {
+    flex: 1;
+    overflow: hidden;
     border: 1px solid #2a2a2a;
-    padding: 8px 12px;
-    overflow-x: auto;
-    line-height: 1.35;
-    font-size: 15px;
-    white-space: pre;
+    background: #0d0d0d;
+    position: relative;
+  }
+  #map {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  canvas {
+    display: block;
+    image-rendering: pixelated;
   }
 
-  /* Tile colours */
-  .cw { color: #3a3a3a; }   /* wall */
-  .cf { color: #1e1e1e; }   /* floor */
-  .cs { color: #55aaff; }   /* stairs */
-  .cp { color: #ffffff; font-weight: bold; } /* player */
-  .cg { color: #e55; }      /* goblin */
-  .co { color: #e87; }      /* orc */
-  .ct { color: #c44; font-weight: bold; }    /* troll */
-  .ci { color: #4d4; }      /* potion */
-  .ck { color: #fa0; }      /* weapon */
-  .ca { color: #88f; }      /* armor */
-
-  /* Log */
+  /* ── Log ── */
   #log {
+    flex-shrink: 0;
     background: #111;
     border: 1px solid #2a2a2a;
     border-top: none;
-    padding: 8px 16px;
-    font-size: 13px;
-    min-height: 100px;
+    padding: 6px 14px;
+    font-size: 12px;
+    line-height: 1.65;
+    height: 112px;
+    overflow: hidden;
+    user-select: none;
   }
-  #log .log-line { color: #666; line-height: 1.7; }
-  #log .log-line:last-child { color: #aaa; }
-  #log .log-dmg { color: #e55; }
-  #log .log-item { color: #4d4; }
-  #log .log-floor { color: #55aaff; }
-  #log .log-die { color: #f44; font-weight: bold; }
+  .ll   { color: #444; }
+  .ll:last-child { color: #999; }
+  .ll-dmg  b { color: #cc4444; }
+  .ll-item   { color: #449944; }
+  .ll-floor  { color: #4488cc; }
+  .ll-die    { color: #ff3333; font-weight: bold; }
 
-  /* Overlays */
+  /* ── Hint ── */
+  #hint {
+    flex-shrink: 0;
+    padding: 4px 14px 0;
+    font-size: 11px;
+    color: #2a2a2a;
+    user-select: none;
+  }
+
+  /* ── Overlay ── */
   #overlay {
     display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.85);
-    align-items: center;
-    justify-content: center;
-    z-index: 10;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.88);
+    align-items: center; justify-content: center;
+    z-index: 20;
   }
   #overlay.show { display: flex; }
-  #overlay-box {
-    background: #111;
-    border: 1px solid #333;
-    padding: 40px 48px;
-    text-align: center;
-    max-width: 340px;
-    width: 90%;
+  #obox {
+    background: #111; border: 1px solid #333;
+    padding: 40px 52px; text-align: center; max-width: 320px; width: 90%;
   }
-  #overlay-box h2 { font-size: 22px; letter-spacing: 0.1em; margin-bottom: 10px; }
-  #overlay-box p { color: #666; font-size: 13px; margin-bottom: 24px; line-height: 1.7; }
-  #overlay-box button {
-    background: #1e1e1e;
-    color: #ccc;
-    border: 1px solid #333;
-    padding: 10px 28px;
-    font-family: inherit;
-    font-size: 14px;
-    cursor: pointer;
-    letter-spacing: 0.08em;
+  #obox h2 { font-size: 20px; letter-spacing: 0.1em; margin-bottom: 10px; }
+  #obox p  { color: #555; font-size: 13px; margin-bottom: 24px; line-height: 1.75; }
+  #obox button {
+    background: #1a1a1a; color: #aaa; border: 1px solid #333;
+    padding: 10px 28px; font-family: inherit; font-size: 13px;
+    cursor: pointer; letter-spacing: 0.08em;
   }
-  #overlay-box button:hover { background: #2a2a2a; color: #fff; }
-  .over-title-dead { color: #e55; }
-  .over-title-win  { color: #55aaff; }
-
-  #hint {
-    margin-top: 10px;
-    font-size: 12px;
-    color: #333;
-    text-align: center;
-  }
+  #obox button:hover { background: #222; color: #fff; }
+  .t-dead { color: #cc3333; }
+  .t-win  { color: #4488cc; }
 </style>
 </head>
 <body>
-
-<div id="game">
+<div id="shell">
   <div id="stats">
     <span class="title">DELVE</span>
-    <span class="stat">HP <span id="hp-bar"></span></span>
-    <span class="stat">ATK <span id="stat-atk"></span></span>
-    <span class="stat">DEF <span id="stat-def"></span></span>
+    <span class="stat">HP&nbsp;<span id="s-hp"></span></span>
+    <span class="stat">ATK&nbsp;<b id="s-atk"></b></span>
+    <span class="stat">DEF&nbsp;<b id="s-def"></b></span>
     <span id="floor-label"></span>
+    <button id="fs-btn" title="Fullscreen (F)">[ ⛶ ]</button>
   </div>
-  <div id="map"></div>
+  <div id="map-wrap"><div id="map"><canvas id="cv"></canvas></div></div>
   <div id="log"></div>
+  <div id="hint">arrows/wasd to move &nbsp;·&nbsp; walk into enemies to attack &nbsp;·&nbsp; walk over items to pick up &nbsp;·&nbsp; <span style="color:#4488cc">&gt;</span> = stairs &nbsp;·&nbsp; F = fullscreen</div>
 </div>
 
-<div id="hint">move: arrow keys / wasd &nbsp;|&nbsp; pick up items by walking over them &nbsp;|&nbsp; reach &gt; to descend</div>
-
 <div id="overlay">
-  <div id="overlay-box">
-    <h2 id="overlay-title"></h2>
-    <p id="overlay-msg"></p>
-    <button id="overlay-btn">[ restart ]</button>
+  <div id="obox">
+    <h2 id="o-title"></h2>
+    <p  id="o-msg"></p>
+    <button id="o-btn">[ play again ]</button>
   </div>
 </div>
 
 <script>
-// ─── Config ─────────────────────────────────────────────────────────────────
-const W = 80, H = 28;
-const TILE = { WALL: 0, FLOOR: 1, STAIRS: 2 };
+// ══════════════════════════════════════════════════
+//  CONFIG
+// ══════════════════════════════════════════════════
+const COLS = 80, ROWS = 26;
+const TILE = { WALL:0, FLOOR:1, STAIRS:2 };
+
+// Canvas font — monospace, 1 char per cell
+const FONT_SIZE = 15;          // px — recalculated on resize
+const FONT_FACE = "'Courier New', Courier, monospace";
+let cellW = 9, cellH = 16;    // recalculated
+
+// Colours
+const C = {
+  bg:     '#0d0d0d',
+  wall:   '#404040',
+  floor:  '#1f1f1f',
+  stairs: '#4488cc',
+  player: '#ffffff',
+  goblin: '#cc4444',
+  orc:    '#cc8844',
+  troll:  '#aa2222',
+  potion: '#44aa44',
+  weapon: '#ffaa00',
+  armor:  '#8888ff',
+};
 
 const ENEMY_DEFS = [
-  { char: 'g', name: 'Goblin', hp: 8,  atk: 3, def: 0, minFloor: 1, cls: 'cg' },
-  { char: 'o', name: 'Orc',    hp: 14, atk: 5, def: 1, minFloor: 2, cls: 'co' },
-  { char: 't', name: 'Troll',  hp: 22, atk: 8, def: 2, minFloor: 3, cls: 'ct' },
+  { char:'g', name:'Goblin', hp:8,  atk:3, def:0, minFloor:1, col:C.goblin },
+  { char:'o', name:'Orc',    hp:14, atk:5, def:1, minFloor:2, col:C.orc    },
+  { char:'t', name:'Troll',  hp:22, atk:8, def:2, minFloor:3, col:C.troll  },
 ];
-
 const ITEM_DEFS = [
-  { char: '!', name: 'Potion',    effect: 'hp',  value: 10, cls: 'ci' },
-  { char: '/', name: 'Weapon',    effect: 'atk', value: 2,  cls: 'ck' },
-  { char: ']', name: 'Armor',     effect: 'def', value: 1,  cls: 'ca' },
+  { char:'!', name:'Potion', effect:'hp',  value:10, col:C.potion },
+  { char:'/', name:'Weapon', effect:'atk', value:2,  col:C.weapon },
+  { char:']', name:'Armor',  effect:'def', value:1,  col:C.armor  },
 ];
 
-// ─── State ──────────────────────────────────────────────────────────────────
-let map, rooms, player, enemies, items, messages, gameOver;
+// ══════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════
+let map, rooms, player, enemies, items, msgs, dead;
 
-// ─── Utilities ──────────────────────────────────────────────────────────────
-const rand = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
-const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const rand  = (a,b) => a + Math.floor(Math.random() * (b - a + 1));
 
-function log(msg, cls = '') {
-  messages.push({ msg, cls });
-  if (messages.length > 8) messages.shift();
-  renderLog();
+// ══════════════════════════════════════════════════
+//  CANVAS SETUP
+// ══════════════════════════════════════════════════
+const cv  = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+
+function measureCell() {
+  // Fit canvas inside map-wrap
+  const wrap = document.getElementById('map-wrap');
+  const aw = wrap.clientWidth  - 4;
+  const ah = wrap.clientHeight - 4;
+  // pick font size that fits both dimensions
+  let fs = Math.floor(Math.min(aw / COLS, ah / ROWS * 0.6));
+  fs = Math.max(10, Math.min(fs, 20));
+  ctx.font = `${fs}px ${FONT_FACE}`;
+  cellW = Math.ceil(ctx.measureText('#').width);
+  cellH = Math.ceil(fs * 1.4);
+  cv.width  = cellW * COLS;
+  cv.height = cellH * ROWS;
+  // re-apply font after resize (canvas reset clears it)
+  ctx.font = `${fs}px ${FONT_FACE}`;
 }
 
-// ─── Dungeon Generation ──────────────────────────────────────────────────────
-function newMap() {
-  const m = [];
-  for (let y = 0; y < H; y++) { m.push([]); for (let x = 0; x < W; x++) m[y].push(TILE.WALL); }
-  return m;
+window.addEventListener('resize', () => { measureCell(); renderMap(); });
+
+// ══════════════════════════════════════════════════
+//  DUNGEON GENERATION
+// ══════════════════════════════════════════════════
+function blankMap() {
+  return Array.from({length:ROWS}, () => new Uint8Array(COLS).fill(TILE.WALL));
 }
 
-function carveRoom(m, room) {
-  for (let y = room.y; y < room.y + room.h; y++)
-    for (let x = room.x; x < room.x + room.w; x++)
+function carveRoom(m, r) {
+  for (let y = r.y; y < r.y + r.h; y++)
+    for (let x = r.x; x < r.x + r.w; x++)
       m[y][x] = TILE.FLOOR;
 }
 
-function carveCorridor(m, x1, y1, x2, y2) {
+function carveTunnel(m, x1, y1, x2, y2) {
   let cx = x1, cy = y1;
-  // horizontal first
-  while (cx !== x2) { m[cy][cx] = TILE.FLOOR; cx += (x2 > cx) ? 1 : -1; }
-  // then vertical
-  while (cy !== y2) { m[cy][cx] = TILE.FLOOR; cy += (y2 > cy) ? 1 : -1; }
+  while (cx !== x2) { m[cy][cx] = TILE.FLOOR; cx += cx < x2 ? 1 : -1; }
+  while (cy !== y2) { m[cy][cx] = TILE.FLOOR; cy += cy < y2 ? 1 : -1; }
   m[cy][cx] = TILE.FLOOR;
 }
 
-function overlaps(a, b, margin = 1) {
-  return !(a.x + a.w + margin <= b.x || b.x + b.w + margin <= a.x ||
-           a.y + a.h + margin <= b.y || b.y + b.h + margin <= a.y);
+function overlaps(a, b, pad=1) {
+  return !(a.x+a.w+pad <= b.x || b.x+b.w+pad <= a.x ||
+           a.y+a.h+pad <= b.y || b.y+b.h+pad <= a.y);
 }
 
 function generateDungeon(floor) {
-  map = newMap();
+  map   = blankMap();
   rooms = [];
+  enemies = [];
+  items   = [];
 
-  const attempts = 200;
-  const targetRooms = rand(7, 11);
-
-  for (let i = 0; i < attempts && rooms.length < targetRooms; i++) {
-    const rw = rand(5, 13), rh = rand(4, 8);
-    const rx = rand(1, W - rw - 2), ry = rand(1, H - rh - 2);
-    const room = { x: rx, y: ry, w: rw, h: rh };
-    if (!rooms.some(r => overlaps(r, room))) {
-      if (rooms.length > 0) {
-        const prev = rooms[rooms.length - 1];
-        const cx1 = Math.floor(prev.x + prev.w / 2), cy1 = Math.floor(prev.y + prev.h / 2);
-        const cx2 = Math.floor(room.x + room.w / 2), cy2 = Math.floor(room.y + room.h / 2);
-        carveCorridor(map, cx1, cy1, cx2, cy2);
-      }
-      carveRoom(map, room);
-      rooms.push(room);
+  const target = rand(7, 11);
+  for (let attempt = 0; attempt < 300 && rooms.length < target; attempt++) {
+    const rw = rand(5,13), rh = rand(4,8);
+    const rx = rand(1, COLS-rw-2), ry = rand(1, ROWS-rh-2);
+    const room = {x:rx, y:ry, w:rw, h:rh};
+    if (rooms.some(r => overlaps(r, room))) continue;
+    if (rooms.length > 0) {
+      const prev = rooms[rooms.length-1];
+      carveTunnel(map,
+        Math.floor(prev.x + prev.w/2), Math.floor(prev.y + prev.h/2),
+        Math.floor(rx   + rw/2),       Math.floor(ry   + rh/2));
     }
+    carveRoom(map, room);
+    rooms.push(room);
   }
 
-  // Place stairs in center of last room
-  const last = rooms[rooms.length - 1];
-  const sx = Math.floor(last.x + last.w / 2), sy = Math.floor(last.y + last.h / 2);
+  // Stairs in last room
+  const last = rooms[rooms.length-1];
+  const sx = Math.floor(last.x + last.w/2), sy = Math.floor(last.y + last.h/2);
   map[sy][sx] = TILE.STAIRS;
 
-  // Enemies
-  enemies = [];
-  const eligible = ENEMY_DEFS.filter(e => e.minFloor <= floor);
-  const numEnemies = rand(3 + floor, 5 + floor * 2);
-  for (let i = 0; i < numEnemies; i++) {
-    const pos = randomFloorTile(rooms.slice(1)); // skip first room (player starts there)
+  // Populate enemies (skip room 0 — player starts there)
+  const spawnRooms = rooms.length > 1 ? rooms.slice(1) : rooms;
+  const eligible   = ENEMY_DEFS.filter(e => e.minFloor <= floor);
+  const nEnemies   = rand(3 + floor, 5 + floor*2);
+  for (let i = 0; i < nEnemies; i++) {
+    const pos = freeTile(spawnRooms);
     if (!pos) continue;
-    const def = eligible[rand(0, eligible.length - 1)];
-    enemies.push({ ...pos, hp: def.hp + floor - 1, atk: def.atk, def: def.def, char: def.char, name: def.name, cls: def.cls });
+    const def = eligible[rand(0, eligible.length-1)];
+    enemies.push({x:pos.x, y:pos.y, hp:def.hp + floor-1,
+                  atk:def.atk, def:def.def,
+                  char:def.char, name:def.name, col:def.col});
   }
 
   // Items
-  items = [];
-  const numItems = rand(3, 6);
-  for (let i = 0; i < numItems; i++) {
-    const pos = randomFloorTile(rooms);
+  const nItems = rand(3, 6);
+  for (let i = 0; i < nItems; i++) {
+    const pos = freeTile(rooms);
     if (!pos) continue;
-    const def = ITEM_DEFS[rand(0, ITEM_DEFS.length - 1)];
-    items.push({ ...pos, ...def });
+    const def = ITEM_DEFS[rand(0, ITEM_DEFS.length-1)];
+    items.push({x:pos.x, y:pos.y, char:def.char, name:def.name,
+                effect:def.effect, value:def.value, col:def.col});
   }
 }
 
-function randomFloorTile(roomList) {
-  for (let tries = 0; tries < 100; tries++) {
-    const room = roomList[rand(0, roomList.length - 1)];
+function freeTile(roomList) {
+  if (!roomList.length) return null;
+  for (let t = 0; t < 200; t++) {
+    const room = roomList[rand(0, roomList.length-1)];
     const x = rand(room.x, room.x + room.w - 1);
     const y = rand(room.y, room.y + room.h - 1);
-    if (map[y][x] === TILE.FLOOR && !entityAt(x, y)) return { x, y };
+    if (map[y][x] !== TILE.FLOOR) continue;
+    if (player && player.x===x && player.y===y) continue;
+    if (enemies.some(e => e.x===x && e.y===y)) continue;
+    if (items.some(i   => i.x===x && i.y===y)) continue;
+    return {x, y};
   }
   return null;
 }
 
-function entityAt(x, y) {
-  if (player && player.x === x && player.y === y) return 'player';
-  if (enemies.some(e => e.x === x && e.y === y)) return 'enemy';
-  if (items.some(i => i.x === x && i.y === y)) return 'item';
-  return null;
-}
-
-// ─── Init ────────────────────────────────────────────────────────────────────
-function initGame() {
-  gameOver = false;
-  messages = [];
-  player = { x: 0, y: 0, hp: 30, maxHp: 30, atk: 5, def: 1, floor: 1 };
+// ══════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════
+function startGame() {
+  dead = false;
+  msgs = [];
+  player = {x:0, y:0, hp:30, maxHp:30, atk:5, def:1, floor:1};
   generateDungeon(1);
-  spawnPlayer();
-  log('You descend into the dungeon. Good luck.', 'log-floor');
-  render();
+  const r = rooms[0];
+  player.x = Math.floor(r.x + r.w/2);
+  player.y = Math.floor(r.y + r.h/2);
+  addLog('You descend into the dungeon.', 'll-floor');
   document.getElementById('overlay').classList.remove('show');
+  measureCell();
+  render();
 }
 
-function spawnPlayer() {
-  const first = rooms[0];
-  player.x = Math.floor(first.x + first.w / 2);
-  player.y = Math.floor(first.y + first.h / 2);
-}
-
-// ─── Input ───────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════
+//  INPUT
+// ══════════════════════════════════════════════════
 document.addEventListener('keydown', e => {
-  if (gameOver) return;
-  const dirs = {
-    ArrowUp: [0,-1], ArrowDown: [0,1], ArrowLeft: [-1,0], ArrowRight: [1,0],
-    w: [0,-1], s: [0,1], a: [-1,0], d: [1,0],
-    W: [0,-1], S: [0,1], A: [-1,0], D: [1,0],
+  if (e.key === 'f' || e.key === 'F') { toggleFullscreen(); return; }
+  if (dead) return;
+  const map_ = {
+    ArrowUp:[0,-1], ArrowDown:[0,1], ArrowLeft:[-1,0], ArrowRight:[1,0],
+    w:[0,-1], s:[0,1], a:[-1,0], d:[1,0],
+    W:[0,-1], S:[0,1], A:[-1,0], D:[1,0],
   };
-  const dir = dirs[e.key];
+  const dir = map_[e.key];
   if (!dir) return;
   e.preventDefault();
-  tryMove(dir[0], dir[1]);
+  act(dir[0], dir[1]);
 });
 
-// ─── Movement & Actions ───────────────────────────────────────────────────────
-function tryMove(dx, dy) {
-  const nx = player.x + dx, ny = player.y + dy;
-  if (nx < 0 || nx >= W || ny < 0 || ny >= H) return;
+document.getElementById('fs-btn').addEventListener('click', toggleFullscreen);
+document.getElementById('o-btn').addEventListener('click', startGame);
+
+// ══════════════════════════════════════════════════
+//  ACTIONS
+// ══════════════════════════════════════════════════
+function act(dx, dy) {
+  const nx = player.x+dx, ny = player.y+dy;
+  if (nx<0||nx>=COLS||ny<0||ny>=ROWS) return;
   const tile = map[ny][nx];
   if (tile === TILE.WALL) return;
 
-  // Check enemy
-  const enemy = enemies.find(e => e.x === nx && e.y === ny);
-  if (enemy) { attackEnemy(enemy); enemyTurn(); render(); return; }
+  const enemy = enemies.find(e => e.x===nx && e.y===ny);
+  if (enemy) {
+    hitEnemy(enemy);
+    enemyTurn();
+    render();
+    return;
+  }
 
-  // Check item
-  const item = items.find(i => i.x === nx && i.y === ny);
-
-  // Move
   player.x = nx; player.y = ny;
 
-  if (item) pickUp(item);
+  const item = items.find(i => i.x===nx && i.y===ny);
+  if (item) grabItem(item);
 
-  // Check stairs
   if (tile === TILE.STAIRS) {
-    nextFloor();
+    player.floor++;
+    generateDungeon(player.floor);
+    const r = rooms[0];
+    player.x = Math.floor(r.x + r.w/2);
+    player.y = Math.floor(r.y + r.h/2);
+    addLog(`You descend to floor ${player.floor}.`, 'll-floor');
+    render();
     return;
   }
 
@@ -342,65 +382,55 @@ function tryMove(dx, dy) {
   render();
 }
 
-function attackEnemy(enemy) {
-  const dmg = Math.max(1, player.atk + rand(0, 2) - enemy.def);
-  enemy.hp -= dmg;
-  log(`You hit ${enemy.name} for <b>${dmg}</b> dmg.`, 'log-dmg');
-  if (enemy.hp <= 0) {
-    enemies = enemies.filter(e => e !== enemy);
-    log(`${enemy.name} is slain!`);
+function hitEnemy(e) {
+  const dmg = Math.max(1, player.atk + rand(0,2) - e.def);
+  e.hp -= dmg;
+  addLog(`You hit ${e.name} for ${dmg} dmg.`, 'll-dmg');
+  if (e.hp <= 0) {
+    enemies = enemies.filter(x => x !== e);
+    addLog(`${e.name} is slain.`);
   }
 }
 
-function pickUp(item) {
+function grabItem(item) {
   items = items.filter(i => i !== item);
   if (item.effect === 'hp') {
-    const healed = Math.min(item.value, player.maxHp - player.hp);
-    player.hp = Math.min(player.maxHp, player.hp + item.value);
-    log(`You drink a Potion. +${healed} HP.`, 'log-item');
+    const gain = Math.min(item.value, player.maxHp - player.hp);
+    player.hp  = Math.min(player.maxHp, player.hp + item.value);
+    addLog(`Potion: +${gain} HP.`, 'll-item');
   } else if (item.effect === 'atk') {
     player.atk += item.value;
-    log(`You grab a Weapon. ATK +${item.value}.`, 'log-item');
-  } else if (item.effect === 'def') {
+    addLog(`Weapon: ATK +${item.value}.`, 'll-item');
+  } else {
     player.def += item.value;
-    log(`You don armor. DEF +${item.value}.`, 'log-item');
+    addLog(`Armor: DEF +${item.value}.`, 'll-item');
   }
 }
 
-function nextFloor() {
-  player.floor++;
-  generateDungeon(player.floor);
-  spawnPlayer();
-  log(`You descend to floor ${player.floor}.`, 'log-floor');
-  render();
-}
-
-// ─── Enemy AI ─────────────────────────────────────────────────────────────────
 function enemyTurn() {
   for (const e of enemies) {
-    // Step toward player (simple: pick axis with greater distance)
     const dx = player.x - e.x, dy = player.y - e.y;
     let mx = 0, my = 0;
-
     if (Math.abs(dx) >= Math.abs(dy)) mx = dx > 0 ? 1 : -1;
-    else my = dy > 0 ? 1 : -1;
+    else                              my = dy > 0 ? 1 : -1;
 
-    const nx = e.x + mx, ny = e.y + my;
-    const tile = map[ny]?.[nx];
-
-    if (nx === player.x && ny === player.y) {
-      // attack player
-      const dmg = Math.max(1, e.atk + rand(0, 1) - player.def);
+    const nx = e.x+mx, ny = e.y+my;
+    if (nx===player.x && ny===player.y) {
+      const dmg = Math.max(1, e.atk + rand(0,1) - player.def);
       player.hp -= dmg;
-      log(`${e.name} hits you for <b>${dmg}</b> dmg.`, 'log-dmg');
-      if (player.hp <= 0) { endGame(false); return; }
-    } else if (tile && tile !== TILE.WALL && !enemies.some(o => o !== e && o.x === nx && o.y === ny)) {
+      addLog(`${e.name} hits you for ${dmg} dmg.`, 'll-dmg');
+      if (player.hp <= 0) { endGame(); return; }
+    } else if (ny>=0 && ny<ROWS && nx>=0 && nx<COLS &&
+               map[ny][nx] !== TILE.WALL &&
+               !enemies.some(o => o!==e && o.x===nx && o.y===ny)) {
       e.x = nx; e.y = ny;
     }
   }
 }
 
-// ─── Rendering ────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════
+//  RENDER
+// ══════════════════════════════════════════════════
 function render() {
   renderStats();
   renderMap();
@@ -408,77 +438,101 @@ function render() {
 }
 
 function renderStats() {
-  const filled = Math.round((player.hp / player.maxHp) * 10);
-  const bar = `<span class="hp-full">${'█'.repeat(filled)}</span><span class="hp-empty">${'░'.repeat(10 - filled)}</span> ${player.hp}/${player.maxHp}`;
-  document.getElementById('hp-bar').innerHTML = bar;
-  document.getElementById('stat-atk').textContent = player.atk;
-  document.getElementById('stat-def').textContent = player.def;
+  const filled = Math.max(0, Math.round((player.hp / player.maxHp) * 10));
+  document.getElementById('s-hp').innerHTML =
+    `<span class="hp-full">${'█'.repeat(filled)}</span>` +
+    `<span class="hp-empty">${'░'.repeat(10-filled)}</span>` +
+    ` ${player.hp}/${player.maxHp}`;
+  document.getElementById('s-atk').textContent = player.atk;
+  document.getElementById('s-def').textContent = player.def;
   document.getElementById('floor-label').textContent = `Floor ${player.floor}`;
 }
 
 function renderMap() {
-  // Build a lookup for entities
-  const enemyMap = {};
-  enemies.forEach(e => { enemyMap[`${e.x},${e.y}`] = e; });
-  const itemMap = {};
-  items.forEach(i => { itemMap[`${i.x},${i.y}`] = i; });
+  ctx.font = ctx.font; // keep current font
+  ctx.fillStyle = C.bg;
+  ctx.fillRect(0, 0, cv.width, cv.height);
 
-  let html = '';
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      const key = `${x},${y}`;
-      if (x === player.x && y === player.y) {
-        html += `<span class="cp">@</span>`;
-      } else if (enemyMap[key]) {
-        const e = enemyMap[key];
-        html += `<span class="${e.cls}">${e.char}</span>`;
-      } else if (itemMap[key]) {
-        const i = itemMap[key];
-        html += `<span class="${i.cls}">${i.char}</span>`;
+  const eMap = {}, iMap = {};
+  enemies.forEach(e => { eMap[e.x+','+e.y] = e; });
+  items.forEach  (i => { iMap[i.x+','+i.y] = i; });
+
+  ctx.textBaseline = 'top';
+
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      const key = x+','+y;
+      let ch, col;
+
+      if (x===player.x && y===player.y) {
+        ch = '@'; col = C.player;
+      } else if (eMap[key]) {
+        const e = eMap[key]; ch = e.char; col = e.col;
+      } else if (iMap[key]) {
+        const i = iMap[key]; ch = i.char; col = i.col;
       } else {
         const t = map[y][x];
-        if (t === TILE.WALL)   html += `<span class="cw">#</span>`;
-        else if (t === TILE.FLOOR)  html += `<span class="cf">.</span>`;
-        else if (t === TILE.STAIRS) html += `<span class="cs">&gt;</span>`;
+        if      (t===TILE.STAIRS) { ch='>'; col=C.stairs; }
+        else if (t===TILE.FLOOR)  { ch='.'; col=C.floor;  }
+        else                      { ch='#'; col=C.wall;   }
       }
+
+      ctx.fillStyle = col;
+      ctx.fillText(ch, x*cellW, y*cellH);
     }
-    html += '\n';
   }
-  document.getElementById('map').innerHTML = html;
 }
 
 function renderLog() {
   const el = document.getElementById('log');
-  el.innerHTML = messages.map(m =>
-    `<div class="log-line ${m.cls || ''}">› ${m.msg}</div>`
+  el.innerHTML = msgs.slice(-7).map((m,i,a) =>
+    `<div class="ll ${m.cls||''}" style="${i===a.length-1?'color:#999':''}">› ${m.msg}</div>`
   ).join('');
 }
 
-// ─── Game Over ────────────────────────────────────────────────────────────────
-function endGame(won) {
-  gameOver = true;
+// ══════════════════════════════════════════════════
+//  GAME OVER
+// ══════════════════════════════════════════════════
+function endGame() {
+  dead = true;
+  player.hp = 0;
   render();
-  const overlay = document.getElementById('overlay');
-  const title   = document.getElementById('overlay-title');
-  const msg     = document.getElementById('overlay-msg');
-  if (won) {
-    title.textContent = 'Victory';
-    title.className = 'over-title-win';
-    msg.textContent = `You escaped on floor ${player.floor}.`;
-  } else {
-    title.textContent = 'You Died';
-    title.className = 'over-title-dead';
-    msg.innerHTML = `Slain on floor ${player.floor}.<br>${player.hp} HP remaining — well, 0.`;
-    log('You have died.', 'log-die');
-    renderLog();
-  }
-  overlay.classList.add('show');
+  addLog('You have died.', 'll-die');
+  renderLog();
+  document.getElementById('o-title').textContent = 'You Died';
+  document.getElementById('o-title').className   = 't-dead';
+  document.getElementById('o-msg').textContent   = `Slain on floor ${player.floor}.`;
+  document.getElementById('overlay').classList.add('show');
 }
 
-document.getElementById('overlay-btn').addEventListener('click', initGame);
+// ══════════════════════════════════════════════════
+//  LOG
+// ══════════════════════════════════════════════════
+function addLog(msg, cls='') {
+  msgs.push({msg, cls});
+  if (msgs.length > 20) msgs.shift();
+  renderLog();
+}
 
-// ─── Start ────────────────────────────────────────────────────────────────────
-initGame();
+// ══════════════════════════════════════════════════
+//  FULLSCREEN
+// ══════════════════════════════════════════════════
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  } else {
+    document.exitFullscreen().catch(() => {});
+  }
+}
+document.addEventListener('fullscreenchange', () => {
+  measureCell();
+  renderMap();
+});
+
+// ══════════════════════════════════════════════════
+//  GO
+// ══════════════════════════════════════════════════
+startGame();
 </script>
 </body>
 </html>
