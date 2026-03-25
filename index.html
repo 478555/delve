@@ -1,474 +1,676 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Delve</title>
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#0d0d0d;color:#ccc;font-family:'Courier New',Courier,monospace;overflow:hidden;user-select:none}
 
-  html, body {
-    height: 100%;
-    background: #0d0d0d;
-    color: #ccc;
-    font-family: 'Courier New', Courier, monospace;
-    overflow: hidden;
-  }
+/* ── SCREENS ── */
+.screen{display:none;width:100vw;height:100vh}
+.screen.active{display:flex}
 
-  #shell {
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-    width: 100vw;
-    padding: 12px 12px 0 12px;
-    gap: 0;
-  }
+/* ══════════════ MENU ══════════════ */
+#screen-menu{flex-direction:column;align-items:center;justify-content:center;gap:0}
+#menu-logo{color:#ccc;font-size:clamp(8px,1.4vw,16px);line-height:1.25;text-align:center;margin-bottom:32px;white-space:pre}
+#menu-stats{color:#333;font-size:13px;margin-bottom:28px;text-align:center;line-height:1.9}
+#menu-stats span{color:#666}
+#menu-options{display:flex;flex-direction:column;gap:4px;align-items:center}
+.menu-opt{font-size:15px;color:#555;letter-spacing:0.06em;padding:4px 0;cursor:pointer;transition:color 0.1s}
+.menu-opt:hover,.menu-opt.sel{color:#eee}
+.menu-opt .mk{color:#333;margin-right:10px}
+.menu-opt:hover .mk,.menu-opt.sel .mk{color:#888}
+#menu-last{margin-top:24px;font-size:11px;color:#222;text-align:center;line-height:1.8}
 
-  /* ── Stats bar ── */
-  #stats {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    gap: 20px;
-    padding: 8px 14px;
-    background: #111;
-    border: 1px solid #2a2a2a;
-    border-bottom: none;
-    font-size: 13px;
-    user-select: none;
-  }
-  #stats .title { font-size: 15px; font-weight: bold; color: #fff; letter-spacing: 0.15em; }
-  #stats .stat  { color: #555; }
-  #stats .stat b { color: #ccc; font-weight: normal; }
-  .hp-full  { color: #cc3333; }
-  .hp-empty { color: #2a2a2a; }
-  #floor-label  { margin-left: auto; color: #444; font-size: 12px; }
-  #fs-btn {
-    background: none; border: 1px solid #2a2a2a; color: #444;
-    font-family: inherit; font-size: 11px; padding: 2px 8px;
-    cursor: pointer; letter-spacing: 0.05em;
-  }
-  #fs-btn:hover { color: #aaa; border-color: #555; }
+/* ══════════════ UPGRADES ══════════════ */
+#screen-upgrades{flex-direction:column;align-items:center;justify-content:center}
+#upg-title{font-size:14px;letter-spacing:0.15em;color:#555;margin-bottom:6px}
+#upg-coins{font-size:13px;color:#888;margin-bottom:28px}
+#upg-coins span{color:#ffaa00}
+#upg-list{display:flex;flex-direction:column;gap:2px;min-width:360px}
+.upg-row{display:flex;align-items:center;padding:10px 14px;border:1px solid #1a1a1a;cursor:pointer;transition:background 0.1s}
+.upg-row:hover{background:#141414}
+.upg-row.maxed{opacity:0.3;cursor:default;pointer-events:none}
+.upg-key{color:#333;width:28px;flex-shrink:0;font-size:13px}
+.upg-row:hover .upg-key{color:#777}
+.upg-name{flex:1;font-size:13px;color:#aaa}
+.upg-level{font-size:11px;color:#444;margin-right:16px}
+.upg-cost{font-size:12px;color:#ffaa00}
+#upg-back{margin-top:20px;font-size:12px;color:#333;cursor:pointer}
+#upg-back:hover{color:#888}
+#upg-msg{margin-top:12px;font-size:12px;height:16px;text-align:center;color:#444}
 
-  /* ── Map ── */
-  #map-wrap {
-    flex: 1;
-    overflow: hidden;
-    border: 1px solid #2a2a2a;
-    background: #0d0d0d;
-    position: relative;
-  }
-  #map {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  canvas {
-    display: block;
-    image-rendering: pixelated;
-  }
+/* ══════════════ GAME ══════════════ */
+#screen-game{
+  display:none;
+  flex-direction:column;
+  padding:10px 10px 0 10px;
+}
+#screen-game.active{display:flex}
+#game-body{
+  flex:1;
+  display:grid;
+  grid-template-columns:155px 1fr 175px;
+  min-height:0;
+  gap:0;
+}
 
-  /* ── Combat panel ── */
-  #combat-panel {
-    display: none;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: #0d0d0d;
-    border: 1px solid #555;
-    min-width: 200px;
-    z-index: 5;
-    user-select: none;
-  }
-  #combat-panel.show { display: block; }
-  #cp-header {
-    padding: 12px 16px 10px;
-    border-bottom: 1px solid #2a2a2a;
-  }
-  #cp-enemy-name {
-    font-size: 13px;
-    font-weight: bold;
-    color: #ccc;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-  #cp-enemy-char {
-    font-size: 22px;
-    margin-bottom: 6px;
-  }
-  #cp-hp-bar { font-size: 12px; color: #555; margin-top: 4px; }
-  #cp-hp-bar .ef { color: #cc3333; }
-  #cp-hp-bar .ee { color: #2a2a2a; }
-  #cp-actions { padding: 8px 0; }
-  .cp-action {
-    display: block;
-    width: 100%;
-    padding: 8px 16px;
-    background: none;
-    border: none;
-    border-bottom: 1px solid #1a1a1a;
-    color: #777;
-    font-family: inherit;
-    font-size: 13px;
-    text-align: left;
-    cursor: pointer;
-    letter-spacing: 0.03em;
-  }
-  .cp-action:last-child { border-bottom: none; }
-  .cp-action:hover, .cp-action.focused { background: #1a1a1a; color: #eee; }
-  .cp-action .key { color: #555; margin-right: 6px; }
-  .cp-action:hover .key, .cp-action.focused .key { color: #888; }
-  #cp-result {
-    padding: 8px 16px 10px;
-    font-size: 12px;
-    color: #666;
-    border-top: 1px solid #1a1a1a;
-    line-height: 1.6;
-    min-height: 0;
-    display: none;
-  }
-  #cp-result.show { display: block; }
-  .cr-dmg  { color: #cc4444; }
-  .cr-block { color: #4488cc; }
-  .cr-run   { color: #888; }
-  .cr-ok    { color: #44aa44; }
+/* stats panel */
+#stats-panel{
+  border:1px solid #222;border-right:none;
+  padding:12px 10px;display:flex;flex-direction:column;gap:14px;
+  overflow:hidden;
+}
+.sp-section{display:flex;flex-direction:column;gap:4px}
+.sp-label{font-size:10px;color:#333;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:2px}
+.sp-val{font-size:22px;font-weight:bold;color:#ccc;line-height:1;letter-spacing:-0.5px}
+.sp-sub{font-size:11px;color:#444;margin-top:2px}
+.hp-full{color:#aa2222}.hp-empty{color:#1e1e1e}
+#sp-coins-val{color:#ffaa00;font-size:18px}
+#sp-coins-label{color:#333}
+.sp-divider{border:none;border-top:1px solid #1a1a1a;margin:0}
+.sp-hint{font-size:10px;color:#2a2a2a;line-height:1.7}
 
-  /* ── Log ── */
-  #log {
-    flex-shrink: 0;
-    background: #111;
-    border: 1px solid #2a2a2a;
-    border-top: none;
-    padding: 6px 14px;
-    font-size: 12px;
-    line-height: 1.65;
-    height: 112px;
-    overflow: hidden;
-    user-select: none;
-  }
-  .ll   { color: #444; }
-  .ll:last-child { color: #999; }
-  .ll-dmg  { color: #cc4444; }
-  .ll-item { color: #449944; }
-  .ll-floor { color: #4488cc; }
-  .ll-die  { color: #ff3333; font-weight: bold; }
-  .ll-block { color: #4488cc; }
-  .ll-run  { color: #888; }
+/* map area */
+#map-area{
+  border:1px solid #222;
+  background:#0d0d0d;position:relative;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;
+}
+canvas{display:block;image-rendering:pixelated}
 
-  /* ── Hint ── */
-  #hint {
-    flex-shrink: 0;
-    padding: 4px 14px 0;
-    font-size: 11px;
-    color: #2a2a2a;
-    user-select: none;
-  }
+/* combat panel */
+#combat-panel{
+  display:none;position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  background:#0d0d0d;border:1px solid #555;min-width:200px;z-index:5;
+}
+#combat-panel.show{display:block}
+#cp-header{padding:12px 16px 10px;border-bottom:1px solid #1e1e1e}
+#cp-enemy-char{font-size:22px;margin-bottom:4px}
+#cp-enemy-name{font-size:12px;font-weight:bold;color:#bbb;letter-spacing:0.1em;text-transform:uppercase}
+#cp-hp-bar{font-size:11px;color:#555;margin-top:5px}
+#cp-hp-bar .ef{color:#aa3333}#cp-hp-bar .ee{color:#1e1e1e}
+#cp-actions{padding:6px 0}
+.cp-action{display:block;width:100%;padding:7px 16px;background:none;border:none;border-bottom:1px solid #141414;color:#666;font-family:inherit;font-size:12px;text-align:left;cursor:pointer;letter-spacing:0.03em}
+.cp-action:last-child{border-bottom:none}
+.cp-action:hover{background:#141414;color:#ddd}
+.cp-action .key{color:#333;margin-right:8px}
+.cp-action:hover .key{color:#777}
+#cp-result{padding:8px 16px 10px;font-size:11px;color:#555;border-top:1px solid #141414;line-height:1.65;display:none}
+#cp-result.show{display:block}
+.cr-dmg{color:#cc4444}.cr-block{color:#4488cc}.cr-ok{color:#44aa44}
 
-  /* ── Game Over Overlay ── */
-  #overlay {
-    display: none;
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,0.88);
-    align-items: center; justify-content: center;
-    z-index: 20;
-  }
-  #overlay.show { display: flex; }
-  #obox {
-    background: #111; border: 1px solid #333;
-    padding: 40px 52px; text-align: center; max-width: 320px; width: 90%;
-  }
-  #obox h2 { font-size: 20px; letter-spacing: 0.1em; margin-bottom: 10px; }
-  #obox p  { color: #555; font-size: 13px; margin-bottom: 24px; line-height: 1.75; }
-  #obox button {
-    background: #1a1a1a; color: #aaa; border: 1px solid #333;
-    padding: 10px 28px; font-family: inherit; font-size: 13px;
-    cursor: pointer; letter-spacing: 0.08em;
-  }
-  #obox button:hover { background: #222; color: #fff; }
-  .t-dead { color: #cc3333; }
+/* inventory panel */
+#inv-panel{
+  border:1px solid #222;border-left:none;
+  padding:12px 10px;display:flex;flex-direction:column;gap:0;
+}
+#inv-title{font-size:10px;color:#333;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:10px}
+.inv-slot{
+  display:flex;align-items:center;gap:8px;
+  padding:7px 8px;border:1px solid #1a1a1a;margin-bottom:4px;
+  cursor:pointer;transition:background 0.1s;
+}
+.inv-slot:hover{background:#141414}
+.inv-slot.empty{opacity:0.3;cursor:default;pointer-events:none}
+.inv-slot.empty:hover{background:none}
+.inv-slot-num{font-size:10px;color:#2a2a2a;width:10px;flex-shrink:0}
+.inv-slot:hover .inv-slot-num{color:#555}
+.inv-slot-char{font-size:16px;width:16px;flex-shrink:0;text-align:center}
+.inv-slot-name{font-size:11px;color:#888;flex:1}
+.inv-slot-use{font-size:10px;color:#333}
+.inv-slot:hover .inv-slot-use{color:#888}
+#inv-note{font-size:10px;color:#2a2a2a;margin-top:6px;line-height:1.6}
+
+/* log + hint */
+#log-bar{
+  border:1px solid #222;border-top:none;
+  padding:5px 12px;font-size:11px;line-height:1.7;
+  height:96px;overflow:hidden;flex-shrink:0;
+}
+.ll{color:#333}.ll:last-child{color:#888}
+.ll-dmg{color:#aa3333}.ll-item{color:#449944}.ll-floor{color:#4488cc}
+.ll-coin{color:#ffaa00}.ll-die{color:#ff3333;font-weight:bold}
+.ll-block{color:#3366bb}.ll-run{color:#666}.ll-exit{color:#55aaff;font-weight:bold}
+#hint-bar{flex-shrink:0;padding:3px 12px 0;font-size:10px;color:#222;white-space:nowrap;overflow:hidden}
+
+/* extraction / death overlays */
+#overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.9);align-items:center;justify-content:center;z-index:30}
+#overlay.show{display:flex}
+#obox{background:#0d0d0d;border:1px solid #333;padding:40px 52px;text-align:center;max-width:340px;width:90%}
+#obox h2{font-size:18px;letter-spacing:0.1em;margin-bottom:10px}
+#obox p{color:#444;font-size:12px;margin-bottom:8px;line-height:1.8}
+#obox .coins-kept{color:#ffaa00;font-size:14px;margin-bottom:20px}
+#obox button{background:#141414;color:#888;border:1px solid #2a2a2a;padding:9px 28px;font-family:inherit;font-size:12px;cursor:pointer;letter-spacing:0.08em;margin:4px}
+#obox button:hover{background:#1e1e1e;color:#fff}
+.t-dead{color:#cc3333}.t-extract{color:#55aaff}
 </style>
 </head>
 <body>
-<div id="shell">
-  <div id="stats">
-    <span class="title">DELVE</span>
-    <span class="stat">HP&nbsp;<span id="s-hp"></span></span>
-    <span class="stat">ATK&nbsp;<b id="s-atk"></b></span>
-    <span class="stat">DEF&nbsp;<b id="s-def"></b></span>
-    <span id="floor-label"></span>
-    <button id="fs-btn" title="Fullscreen (F)">[ ⛶ ]</button>
-  </div>
-  <div id="map-wrap">
-    <div id="map"><canvas id="cv"></canvas></div>
 
-    <!-- Combat panel (inside map-wrap so it overlays the canvas) -->
-    <div id="combat-panel">
-      <div id="cp-header">
-        <div id="cp-enemy-char"></div>
-        <div id="cp-enemy-name"></div>
-        <div id="cp-hp-bar"></div>
-      </div>
-      <div id="cp-actions">
-        <button class="cp-action" id="cp-attack"><span class="key">[A]</span> Attack</button>
-        <button class="cp-action" id="cp-block"> <span class="key">[W]</span> Block</button>
-        <button class="cp-action" id="cp-run">   <span class="key">[R]</span> Run</button>
-      </div>
-      <div id="cp-result"></div>
-    </div>
+<!-- ═══════════════════ MENU ═══════════════════ -->
+<div id="screen-menu" class="screen active">
+  <pre id="menu-logo">
+ ██████╗ ███████╗██╗    ██╗   ██╗███████╗
+ ██╔══██╗██╔════╝██║    ██║   ██║██╔════╝
+ ██║  ██║█████╗  ██║    ██║   ██║█████╗
+ ██║  ██║██╔══╝  ██║    ╚██╗ ██╔╝██╔══╝
+ ██████╔╝███████╗███████╗╚████╔╝ ███████╗
+ ╚═════╝ ╚══════╝╚══════╝ ╚═══╝  ╚══════╝</pre>
+  <div id="menu-stats">
+    coins in stash: <span id="menu-coins">0</span>
+    &nbsp;·&nbsp; upgrades purchased: <span id="menu-upg-count">0</span>
   </div>
-  <div id="log"></div>
-  <div id="hint">move: arrows/wasd &nbsp;·&nbsp; bump enemy to fight &nbsp;·&nbsp; in combat: A=attack W=block R=run &nbsp;·&nbsp; F=fullscreen</div>
+  <div id="menu-options">
+    <div class="menu-opt" data-key="S"><span class="mk">[S]</span> start new run</div>
+    <div class="menu-opt" data-key="U"><span class="mk">[U]</span> upgrades</div>
+  </div>
+  <div id="menu-last"></div>
 </div>
 
+<!-- ═══════════════════ UPGRADES ═══════════════════ -->
+<div id="screen-upgrades" class="screen">
+  <div id="upg-title">UPGRADES</div>
+  <div id="upg-coins">stash: <span id="upg-coins-val">0</span> coins</div>
+  <div id="upg-list">
+    <div class="upg-row" data-upg="hp">
+      <span class="upg-key">[1]</span>
+      <span class="upg-name">Max HP  <small style="color:#333">+10 per level</small></span>
+      <span class="upg-level" id="ul-hp">0/5</span>
+      <span class="upg-cost">30 coins</span>
+    </div>
+    <div class="upg-row" data-upg="atk">
+      <span class="upg-key">[2]</span>
+      <span class="upg-name">Attack  <small style="color:#333">+2 per level</small></span>
+      <span class="upg-level" id="ul-atk">0/5</span>
+      <span class="upg-cost">25 coins</span>
+    </div>
+    <div class="upg-row" data-upg="def">
+      <span class="upg-key">[3]</span>
+      <span class="upg-name">Defense  <small style="color:#333">+1 per level</small></span>
+      <span class="upg-level" id="ul-def">0/5</span>
+      <span class="upg-cost">20 coins</span>
+    </div>
+    <div class="upg-row" data-upg="pot">
+      <span class="upg-key">[4]</span>
+      <span class="upg-name">Starting Potion  <small style="color:#333">extra potion on run start</small></span>
+      <span class="upg-level" id="ul-pot">0/3</span>
+      <span class="upg-cost">15 coins</span>
+    </div>
+  </div>
+  <div id="upg-msg"></div>
+  <div id="upg-back">[ESC] back to menu</div>
+</div>
+
+<!-- ═══════════════════ GAME ═══════════════════ -->
+<div id="screen-game" class="screen">
+  <div id="game-body">
+    <!-- Left: stats -->
+    <div id="stats-panel">
+      <div class="sp-section">
+        <div class="sp-label">Health</div>
+        <div><span id="sp-hp-bar"></span></div>
+        <div class="sp-sub" id="sp-hp-num"></div>
+      </div>
+      <hr class="sp-divider"/>
+      <div class="sp-section">
+        <div class="sp-label">Attack</div>
+        <div class="sp-val" id="sp-atk"></div>
+      </div>
+      <div class="sp-section">
+        <div class="sp-label">Defense</div>
+        <div class="sp-val" id="sp-def"></div>
+      </div>
+      <hr class="sp-divider"/>
+      <div class="sp-section">
+        <div class="sp-label" id="sp-coins-label">Coins (run)</div>
+        <div class="sp-val" id="sp-coins-val">0</div>
+      </div>
+      <hr class="sp-divider"/>
+      <div class="sp-hint">
+        move: arrows/wasd<br>
+        use item: 1-6<br>
+        fullscreen: F<br>
+        <span style="color:#4488cc">E</span> = extract exit
+      </div>
+    </div>
+
+    <!-- Center: map canvas -->
+    <div id="map-area">
+      <canvas id="cv"></canvas>
+
+      <div id="combat-panel">
+        <div id="cp-header">
+          <div id="cp-enemy-char"></div>
+          <div id="cp-enemy-name"></div>
+          <div id="cp-hp-bar"></div>
+        </div>
+        <div id="cp-actions">
+          <button class="cp-action" id="cp-attack"><span class="key">[A]</span> Attack</button>
+          <button class="cp-action" id="cp-block"> <span class="key">[W]</span> Block</button>
+          <button class="cp-action" id="cp-run">   <span class="key">[R]</span> Run</button>
+        </div>
+        <div id="cp-result"></div>
+      </div>
+    </div>
+
+    <!-- Right: inventory -->
+    <div id="inv-panel">
+      <div id="inv-title">Inventory</div>
+      <div id="inv-slots"></div>
+      <div id="inv-note">press 1-6 to use item</div>
+    </div>
+  </div>
+
+  <div id="log-bar"></div>
+  <div id="hint-bar">arrows/wasd: move &nbsp;·&nbsp; A/W/R: combat &nbsp;·&nbsp; 1-6: use item &nbsp;·&nbsp; walk onto <span style="color:#4488cc">E</span> to extract &nbsp;·&nbsp; F: fullscreen</div>
+</div>
+
+<!-- overlay (death/extract) -->
 <div id="overlay">
   <div id="obox">
     <h2 id="o-title"></h2>
     <p  id="o-msg"></p>
-    <button id="o-btn">[ play again ]</button>
+    <div id="o-coins" class="coins-kept"></div>
+    <div>
+      <button id="o-menu">[ main menu ]</button>
+      <button id="o-restart">[ run again ]</button>
+    </div>
   </div>
 </div>
 
 <script>
 // ══════════════════════════════════════════════════
+//  SAVE / PERSIST
+// ══════════════════════════════════════════════════
+const SAVE_KEY = 'delve_save';
+let save = {coins:0, upg:{hp:0,atk:0,def:0,pot:0}, lastRun:null};
+function loadSave() {
+  try { const s=JSON.parse(localStorage.getItem(SAVE_KEY)); if(s) save=s; } catch(e){}
+}
+function writeSave() { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); }
+loadSave();
+
+// ══════════════════════════════════════════════════
 //  CONFIG
 // ══════════════════════════════════════════════════
-const COLS = 80, ROWS = 26;
-const TILE = { WALL:0, FLOOR:1, STAIRS:2 };
-const FONT_FACE = "'Courier New', Courier, monospace";
+const MAP_W=180, MAP_H=55;
+const TILE={WALL:0,FLOOR:1,EXIT:2};
+const FONT_FACE="'Courier New',Courier,monospace";
+const INV_MAX=6;
+const UPG_CFG=[
+  {id:'hp',  name:'Max HP',  max:5, cost:30, stat:'maxHp', gain:10},
+  {id:'atk', name:'Attack',  max:5, cost:25, stat:'atk',   gain:2},
+  {id:'def', name:'Defense', max:5, cost:20, stat:'def',   gain:1},
+  {id:'pot', name:'Potion',  max:3, cost:15, stat:null,    gain:1},
+];
 
-const C = {
-  bg:     '#0d0d0d',
-  wall:   '#404040',
-  floor:  '#1f1f1f',
-  stairs: '#4488cc',
-  player: '#ffffff',
-  goblin: '#cc4444',
-  orc:    '#cc8844',
-  troll:  '#aa2222',
-  potion: '#44aa44',
-  weapon: '#ffaa00',
-  armor:  '#8888ff',
+const C={
+  bg:'#0d0d0d',wall:'#383838',floor:'#1a1a1a',exit:'#4488cc',
+  player:'#ffffff',goblin:'#cc4444',orc:'#cc8844',troll:'#aa2222',
+  potion:'#44aa44',weapon:'#ffaa00',armor:'#8888ff',coin:'#ddaa00',
 };
-
-const ENEMY_DEFS = [
-  { char:'g', name:'Goblin', hp:8,  atk:3, def:0, minFloor:1, col:C.goblin },
-  { char:'o', name:'Orc',    hp:14, atk:5, def:1, minFloor:2, col:C.orc    },
-  { char:'t', name:'Troll',  hp:22, atk:8, def:2, minFloor:3, col:C.troll  },
+const ENEMY_DEFS=[
+  {char:'g',name:'Goblin',hp:8, atk:3,def:0,col:C.goblin,coins:[1,2]},
+  {char:'o',name:'Orc',   hp:14,atk:5,def:1,col:C.orc,   coins:[2,3]},
+  {char:'t',name:'Troll', hp:22,atk:8,def:2,col:C.troll, coins:[2,4]},
 ];
-const ITEM_DEFS = [
-  { char:'!', name:'Potion', effect:'hp',  value:10, col:C.potion },
-  { char:'/', name:'Weapon', effect:'atk', value:2,  col:C.weapon },
-  { char:']', name:'Armor',  effect:'def', value:1,  col:C.armor  },
+const ITEM_DEFS=[
+  {char:'!',name:'Potion', effect:'hp', value:15,col:C.potion,label:'Heal +15'},
+  {char:'/',name:'Weapon', effect:'atk',value:2, col:C.weapon,label:'ATK +2'},
+  {char:']',name:'Armor',  effect:'def',value:1, col:C.armor, label:'DEF +1'},
 ];
 
 // ══════════════════════════════════════════════════
-//  STATE
+//  GAME STATE
 // ══════════════════════════════════════════════════
-let map, rooms, player, enemies, items, msgs, dead;
-let combatEnemy = null;   // active fight target
-let combatPhase = null;   // null | 'choose' | 'result'
-let cellW = 9, cellH = 16;
+let map_,rooms,player,enemies,items,msgs,dead,runOver;
+let combatEnemy=null,combatPhase=null;
+let inv=[];   // inventory array, max 6
 
-const rand = (a,b) => a + Math.floor(Math.random() * (b - a + 1));
+// canvas / viewport
+let cellW=9,cellH=16,VW=60,VH=22;
+const cv=document.getElementById('cv');
+const ctx=cv.getContext('2d');
+
+const rand=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
 
 // ══════════════════════════════════════════════════
-//  CANVAS
+//  SCREEN MANAGER
 // ══════════════════════════════════════════════════
-const cv  = document.getElementById('cv');
-const ctx = cv.getContext('2d');
-
-function measureCell() {
-  const wrap = document.getElementById('map-wrap');
-  const aw = wrap.clientWidth  - 4;
-  const ah = wrap.clientHeight - 4;
-  let fs = Math.floor(Math.min(aw / COLS, ah / ROWS * 0.62));
-  fs = Math.max(10, Math.min(fs, 20));
-  ctx.font = `${fs}px ${FONT_FACE}`;
-  cellW = Math.ceil(ctx.measureText('#').width);
-  cellH = Math.ceil(fs * 1.4);
-  cv.width  = cellW * COLS;
-  cv.height = cellH * ROWS;
-  ctx.font  = `${fs}px ${FONT_FACE}`;
+let currentScreen='menu';
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-'+id).classList.add('active');
+  currentScreen=id;
 }
 
-window.addEventListener('resize', () => { measureCell(); renderMap(); });
+// ══════════════════════════════════════════════════
+//  MENU
+// ══════════════════════════════════════════════════
+function showMenu(){
+  showScreen('menu');
+  document.getElementById('menu-coins').textContent=save.coins;
+  const total=Object.values(save.upg).reduce((a,b)=>a+b,0);
+  document.getElementById('menu-upg-count').textContent=total;
+  if(save.lastRun){
+    const r=save.lastRun;
+    document.getElementById('menu-last').innerHTML=
+      `last run: floor — &nbsp;${r.outcome==='extract'?'<span style="color:#4488cc">extracted</span>':'<span style="color:#cc3333">died</span>'}&nbsp; · &nbsp;coins earned: ${r.coins}`;
+  }
+}
+
+// ══════════════════════════════════════════════════
+//  UPGRADES SCREEN
+// ══════════════════════════════════════════════════
+function showUpgrades(){
+  showScreen('upgrades');
+  refreshUpgUI();
+}
+function refreshUpgUI(){
+  document.getElementById('upg-coins-val').textContent=save.coins;
+  UPG_CFG.forEach(u=>{
+    const lv=save.upg[u.id]||0;
+    document.getElementById('ul-'+u.id).textContent=lv+'/'+u.max;
+    const row=document.querySelector(`[data-upg="${u.id}"]`);
+    if(lv>=u.max) row.classList.add('maxed'); else row.classList.remove('maxed');
+  });
+}
+function buyUpgrade(id){
+  const u=UPG_CFG.find(x=>x.id===id);
+  const lv=save.upg[id]||0;
+  if(lv>=u.max){showUpgMsg('Already maxed.'); return;}
+  if(save.coins<u.cost){showUpgMsg('Not enough coins.'); return;}
+  save.coins-=u.cost; save.upg[id]=(save.upg[id]||0)+1; writeSave();
+  refreshUpgUI(); showUpgMsg(`${u.name} upgraded to level ${save.upg[id]}!`);
+}
+function showUpgMsg(t){
+  const el=document.getElementById('upg-msg'); el.textContent=t;
+  clearTimeout(el._t); el._t=setTimeout(()=>el.textContent='',2000);
+}
 
 // ══════════════════════════════════════════════════
 //  DUNGEON GENERATION
 // ══════════════════════════════════════════════════
-function blankMap() {
-  return Array.from({length:ROWS}, () => new Uint8Array(COLS).fill(TILE.WALL));
+function blankMap(){
+  return Array.from({length:MAP_H},()=>new Uint8Array(MAP_W).fill(TILE.WALL));
 }
-
-function carveRoom(m, r) {
-  for (let y = r.y; y < r.y+r.h; y++)
-    for (let x = r.x; x < r.x+r.w; x++)
-      m[y][x] = TILE.FLOOR;
+function carveRoom(m,r){
+  for(let y=r.y;y<r.y+r.h;y++) for(let x=r.x;x<r.x+r.w;x++) m[y][x]=TILE.FLOOR;
 }
-
-function carveTunnel(m, x1,y1,x2,y2) {
-  let cx=x1, cy=y1;
-  while (cx!==x2) { m[cy][cx]=TILE.FLOOR; cx+=cx<x2?1:-1; }
-  while (cy!==y2) { m[cy][cx]=TILE.FLOOR; cy+=cy<y2?1:-1; }
+function carveTunnel(m,x1,y1,x2,y2){
+  let cx=x1,cy=y1;
+  while(cx!==x2){m[cy][cx]=TILE.FLOOR;cx+=cx<x2?1:-1;}
+  while(cy!==y2){m[cy][cx]=TILE.FLOOR;cy+=cy<y2?1:-1;}
   m[cy][cx]=TILE.FLOOR;
 }
-
-function overlaps(a,b,pad=1) {
-  return !(a.x+a.w+pad<=b.x || b.x+b.w+pad<=a.x ||
-           a.y+a.h+pad<=b.y || b.y+b.h+pad<=a.y);
+function overlaps(a,b,p=1){
+  return !(a.x+a.w+p<=b.x||b.x+b.w+p<=a.x||a.y+a.h+p<=b.y||b.y+b.h+p<=a.y);
 }
 
-function generateDungeon(floor) {
-  map=blankMap(); rooms=[]; enemies=[]; items=[];
-  const target=rand(7,11);
-  for (let att=0; att<300 && rooms.length<target; att++) {
-    const rw=rand(5,13), rh=rand(4,8);
-    const rx=rand(1,COLS-rw-2), ry=rand(1,ROWS-rh-2);
+function generateDungeon(){
+  map_=blankMap(); rooms=[]; enemies=[]; items=[];
+  const target=rand(14,18);
+  for(let att=0;att<600&&rooms.length<target;att++){
+    const rw=rand(5,14),rh=rand(4,9);
+    const rx=rand(1,MAP_W-rw-2),ry=rand(1,MAP_H-rh-2);
     const room={x:rx,y:ry,w:rw,h:rh};
-    if (rooms.some(r=>overlaps(r,room))) continue;
-    if (rooms.length>0) {
+    if(rooms.some(r=>overlaps(r,room))) continue;
+    if(rooms.length>0){
       const p=rooms[rooms.length-1];
-      carveTunnel(map,
-        Math.floor(p.x+p.w/2), Math.floor(p.y+p.h/2),
-        Math.floor(rx+rw/2),   Math.floor(ry+rh/2));
+      carveTunnel(map_,
+        Math.floor(p.x+p.w/2),Math.floor(p.y+p.h/2),
+        Math.floor(rx+rw/2),  Math.floor(ry+rh/2));
     }
-    carveRoom(map,room); rooms.push(room);
+    carveRoom(map_,room); rooms.push(room);
   }
-  const last=rooms[rooms.length-1];
-  map[Math.floor(last.y+last.h/2)][Math.floor(last.x+last.w/2)]=TILE.STAIRS;
 
-  const spawnRooms = rooms.length>1 ? rooms.slice(1) : rooms;
-  const eligible   = ENEMY_DEFS.filter(e=>e.minFloor<=floor);
-  for (let i=0, n=rand(3+floor,5+floor*2); i<n; i++) {
-    const pos=freeTile(spawnRooms); if(!pos) continue;
-    const def=eligible[rand(0,eligible.length-1)];
-    enemies.push({x:pos.x,y:pos.y,hp:def.hp+floor-1,maxHp:def.hp+floor-1,
-                  atk:def.atk,def:def.def,char:def.char,name:def.name,col:def.col});
-  }
-  for (let i=0, n=rand(3,6); i<n; i++) {
+  // Place 5 EXIT tiles in spread-out rooms
+  const exitRooms=spreadRooms(rooms,5);
+  exitRooms.forEach(r=>{
+    const ex=Math.floor(r.x+r.w/2),ey=Math.floor(r.y+r.h/2);
+    map_[ey][ex]=TILE.EXIT;
+  });
+
+  // Enemies (skip room 0)
+  const sr=rooms.length>1?rooms.slice(1):rooms;
+  ENEMY_DEFS.forEach(def=>{
+    const count=rand(3,7);
+    for(let i=0;i<count;i++){
+      const pos=freeTile(sr); if(!pos) continue;
+      enemies.push({x:pos.x,y:pos.y,
+        hp:def.hp,maxHp:def.hp,atk:def.atk,def:def.def,
+        char:def.char,name:def.name,col:def.col,coins:def.coins});
+    }
+  });
+
+  // Items scattered
+  for(let i=0;i<rand(12,18);i++){
     const pos=freeTile(rooms); if(!pos) continue;
     const def=ITEM_DEFS[rand(0,ITEM_DEFS.length-1)];
-    items.push({x:pos.x,y:pos.y,char:def.char,name:def.name,
-                effect:def.effect,value:def.value,col:def.col});
+    items.push({x:pos.x,y:pos.y,...def});
   }
 }
 
-function freeTile(roomList) {
-  if (!roomList.length) return null;
-  for (let t=0; t<200; t++) {
+function spreadRooms(arr,n){
+  if(arr.length<=n) return arr;
+  const step=Math.floor(arr.length/n);
+  return Array.from({length:n},(_,i)=>arr[Math.min(i*step+Math.floor(step/2),arr.length-1)]);
+}
+
+function freeTile(roomList){
+  if(!roomList.length) return null;
+  for(let t=0;t<300;t++){
     const room=roomList[rand(0,roomList.length-1)];
-    const x=rand(room.x,room.x+room.w-1), y=rand(room.y,room.y+room.h-1);
-    if (map[y][x]!==TILE.FLOOR) continue;
-    if (player&&player.x===x&&player.y===y) continue;
-    if (enemies.some(e=>e.x===x&&e.y===y)) continue;
-    if (items.some(i=>i.x===x&&i.y===y)) continue;
+    const x=rand(room.x,room.x+room.w-1),y=rand(room.y,room.y+room.h-1);
+    if(map_[y][x]!==TILE.FLOOR) continue;
+    if(player&&player.x===x&&player.y===y) continue;
+    if(enemies.some(e=>e.x===x&&e.y===y)) continue;
+    if(items.some(i=>i.x===x&&i.y===y)) continue;
     return {x,y};
   }
   return null;
 }
 
 // ══════════════════════════════════════════════════
-//  INIT
+//  START RUN
 // ══════════════════════════════════════════════════
-function startGame() {
-  dead=false; msgs=[]; combatEnemy=null; combatPhase=null;
-  player={x:0,y:0,hp:30,maxHp:30,atk:5,def:1,floor:1};
-  generateDungeon(1);
+function startRun(){
+  dead=false; runOver=false; msgs=[]; combatEnemy=null; combatPhase=null; inv=[];
+  const baseHp=30+save.upg.hp*10;
+  player={x:0,y:0,hp:baseHp,maxHp:baseHp,
+          atk:5+save.upg.atk*2,def:1+save.upg.def,coins:0};
+  generateDungeon();
   const r=rooms[0]; player.x=Math.floor(r.x+r.w/2); player.y=Math.floor(r.y+r.h/2);
-  addLog('You descend into the dungeon.','ll-floor');
+
+  // Starting potions from upgrade
+  for(let i=0;i<save.upg.pot&&inv.length<INV_MAX;i++)
+    inv.push({...ITEM_DEFS[0]});
+
+  showScreen('game');
   document.getElementById('overlay').classList.remove('show');
   hideCombat();
-  measureCell(); render();
+  measureCell();
+  addLog('You enter the dungeon. Find an exit to extract.','ll-floor');
+  render();
+}
+
+// ══════════════════════════════════════════════════
+//  CANVAS / VIEWPORT
+// ══════════════════════════════════════════════════
+function measureCell(){
+  const wrap=document.getElementById('map-area');
+  const aw=Math.max(1,wrap.clientWidth-2), ah=Math.max(1,wrap.clientHeight-2);
+  let fs=Math.floor(Math.min(aw/70, ah/22*0.65));
+  fs=Math.max(9,Math.min(fs,18));
+  ctx.font=`${fs}px ${FONT_FACE}`;
+  cellW=Math.ceil(ctx.measureText('#').width);
+  cellH=Math.ceil(fs*1.38);
+  VW=Math.floor(aw/cellW); VH=Math.floor(ah/cellH);
+  cv.width=VW*cellW; cv.height=VH*cellH;
+  ctx.font=`${fs}px ${FONT_FACE}`;
+}
+window.addEventListener('resize',()=>{if(currentScreen==='game'){measureCell();renderMap();}});
+document.addEventListener('fullscreenchange',()=>{if(currentScreen==='game'){measureCell();renderMap();}});
+
+function getCam(){
+  return {
+    x:Math.max(0,Math.min(Math.floor(player.x-VW/2),MAP_W-VW)),
+    y:Math.max(0,Math.min(Math.floor(player.y-VH/2),MAP_H-VH)),
+  };
 }
 
 // ══════════════════════════════════════════════════
 //  INPUT
 // ══════════════════════════════════════════════════
-document.addEventListener('keydown', e => {
-  if (e.key==='f'||e.key==='F') { toggleFullscreen(); return; }
-  if (dead) return;
+document.addEventListener('keydown',e=>{
+  if(e.key==='f'||e.key==='F'){toggleFullscreen();return;}
 
-  // Combat input
-  if (combatPhase==='choose') {
-    if (e.key==='a'||e.key==='A') { e.preventDefault(); doCombatAction('attack'); return; }
-    if (e.key==='w'||e.key==='W') { e.preventDefault(); doCombatAction('block');  return; }
-    if (e.key==='r'||e.key==='R') { e.preventDefault(); doCombatAction('run');    return; }
-    return; // block all other keys during combat
-  }
-  // After result shown, any key continues
-  if (combatPhase==='result') {
-    e.preventDefault();
-    continueCombat();
+  if(currentScreen==='menu'){
+    if(e.key==='s'||e.key==='S') startRun();
+    if(e.key==='u'||e.key==='U') showUpgrades();
     return;
   }
+  if(currentScreen==='upgrades'){
+    if(e.key==='Escape') showMenu();
+    if(e.key==='1') buyUpgrade('hp');
+    if(e.key==='2') buyUpgrade('atk');
+    if(e.key==='3') buyUpgrade('def');
+    if(e.key==='4') buyUpgrade('pot');
+    return;
+  }
+  if(currentScreen!=='game'||dead||runOver) return;
+
+  // Combat keys
+  if(combatPhase==='choose'){
+    if(e.key==='a'||e.key==='A'){e.preventDefault();doCombat('attack');return;}
+    if(e.key==='w'||e.key==='W'){e.preventDefault();doCombat('block'); return;}
+    if(e.key==='r'||e.key==='R'){e.preventDefault();doCombat('run');   return;}
+    return;
+  }
+  if(combatPhase==='result'){e.preventDefault();continueCombat();return;}
+
+  // Inventory use
+  const n=parseInt(e.key);
+  if(n>=1&&n<=6){useInvSlot(n-1);return;}
 
   // Movement
-  const dirs = {
-    ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],
-    w:[0,-1],s:[0,1],a:[-1,0],d:[1,0],
-    W:[0,-1],S:[0,1],A:[-1,0],D:[1,0],
-  };
-  const dir=dirs[e.key]; if(!dir) return;
-  e.preventDefault();
-  act(dir[0],dir[1]);
+  const DIRS={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],
+               w:[0,-1],s:[0,1],a:[-1,0],d:[1,0],
+               W:[0,-1],S:[0,1],A:[-1,0],D:[1,0]};
+  const dir=DIRS[e.key]; if(!dir) return;
+  e.preventDefault(); act(dir[0],dir[1]);
 });
 
-// Button clicks
-document.getElementById('cp-attack').addEventListener('click', ()=>doCombatAction('attack'));
-document.getElementById('cp-block' ).addEventListener('click', ()=>doCombatAction('block'));
-document.getElementById('cp-run'   ).addEventListener('click', ()=>doCombatAction('run'));
-document.getElementById('cp-result').addEventListener('click', continueCombat);
-document.getElementById('fs-btn'   ).addEventListener('click', toggleFullscreen);
-document.getElementById('o-btn'    ).addEventListener('click', startGame);
+// click handlers
+document.getElementById('cp-attack').addEventListener('click',()=>doCombat('attack'));
+document.getElementById('cp-block' ).addEventListener('click',()=>doCombat('block'));
+document.getElementById('cp-run'   ).addEventListener('click',()=>doCombat('run'));
+document.getElementById('cp-result').addEventListener('click',continueCombat);
+document.getElementById('fs-btn')?.addEventListener('click',toggleFullscreen);
+document.getElementById('o-menu'   ).addEventListener('click',()=>{document.getElementById('overlay').classList.remove('show');showMenu();});
+document.getElementById('o-restart').addEventListener('click',()=>{document.getElementById('overlay').classList.remove('show');startRun();});
+document.getElementById('upg-back' ).addEventListener('click',showMenu);
+document.querySelectorAll('.menu-opt').forEach(el=>{
+  el.addEventListener('click',()=>{
+    const k=el.dataset.key;
+    if(k==='S') startRun();
+    if(k==='U') showUpgrades();
+  });
+});
+document.querySelectorAll('.upg-row').forEach(el=>{
+  el.addEventListener('click',()=>buyUpgrade(el.dataset.upg));
+});
 
 // ══════════════════════════════════════════════════
-//  MOVEMENT
+//  MOVEMENT & ACTIONS
 // ══════════════════════════════════════════════════
-function act(dx,dy) {
+function act(dx,dy){
   const nx=player.x+dx, ny=player.y+dy;
-  if (nx<0||nx>=COLS||ny<0||ny>=ROWS) return;
-  const tile=map[ny][nx];
-  if (tile===TILE.WALL) return;
+  if(nx<0||nx>=MAP_W||ny<0||ny>=MAP_H) return;
+  const tile=map_[ny][nx];
+  if(tile===TILE.WALL) return;
 
   const enemy=enemies.find(e=>e.x===nx&&e.y===ny);
-  if (enemy) { openCombat(enemy); return; }
+  if(enemy){openCombat(enemy);return;}
 
   player.x=nx; player.y=ny;
 
   const item=items.find(i=>i.x===nx&&i.y===ny);
-  if (item) grabItem(item);
+  if(item) tryPickup(item);
 
-  if (tile===TILE.STAIRS) {
-    player.floor++;
-    generateDungeon(player.floor);
-    const r=rooms[0]; player.x=Math.floor(r.x+r.w/2); player.y=Math.floor(r.y+r.h/2);
-    addLog(`You descend to floor ${player.floor}.`,'ll-floor');
-    render(); return;
-  }
-
-  enemyTurn(); render();
+  if(tile===TILE.EXIT) doExtract();
+  else{enemyTurn();render();}
 }
 
-function grabItem(item) {
+function tryPickup(item){
   items=items.filter(i=>i!==item);
-  if (item.effect==='hp') {
+  if(inv.length<INV_MAX){
+    inv.push({...item});
+    addLog(`Picked up ${item.name}.`,'ll-item');
+  } else {
+    addLog(`Inventory full — ${item.name} left behind.`,'ll-item');
+  }
+}
+
+function useInvSlot(idx){
+  if(idx>=inv.length) return;
+  const item=inv[idx];
+  if(item.effect==='hp'){
     const gain=Math.min(item.value,player.maxHp-player.hp);
     player.hp=Math.min(player.maxHp,player.hp+item.value);
-    addLog(`Potion: +${gain} HP.`,'ll-item');
-  } else if (item.effect==='atk') {
-    player.atk+=item.value; addLog(`Weapon: ATK +${item.value}.`,'ll-item');
-  } else {
-    player.def+=item.value; addLog(`Armor: DEF +${item.value}.`,'ll-item');
+    inv.splice(idx,1);
+    addLog(`Drank Potion: +${gain} HP.`,'ll-item');
+  } else if(item.effect==='atk'){
+    player.atk+=item.value;
+    inv.splice(idx,1);
+    addLog(`Equipped Weapon: ATK +${item.value}.`,'ll-item');
+  } else if(item.effect==='def'){
+    player.def+=item.value;
+    inv.splice(idx,1);
+    addLog(`Equipped Armor: DEF +${item.value}.`,'ll-item');
+  }
+  render();
+}
+
+// ══════════════════════════════════════════════════
+//  EXTRACTION
+// ══════════════════════════════════════════════════
+function doExtract(){
+  runOver=true;
+  save.coins+=player.coins; save.lastRun={outcome:'extract',coins:player.coins}; writeSave();
+  addLog(`EXTRACTED! +${player.coins} coins banked.`,'ll-exit');
+  render();
+  document.getElementById('o-title').textContent='Extracted!';
+  document.getElementById('o-title').className='t-extract';
+  document.getElementById('o-msg').textContent='You made it out alive.';
+  document.getElementById('o-coins').textContent=`+${player.coins} coins added to stash  (total: ${save.coins})`;
+  document.getElementById('overlay').classList.add('show');
+}
+
+// ══════════════════════════════════════════════════
+//  ENEMY AI
+// ══════════════════════════════════════════════════
+function enemyTurn(){
+  for(const e of enemies){
+    const dx=player.x-e.x, dy=player.y-e.y;
+    let mx=0,my=0;
+    if(Math.abs(dx)>=Math.abs(dy)) mx=dx>0?1:-1; else my=dy>0?1:-1;
+    const nx=e.x+mx, ny=e.y+my;
+    if(ny<0||ny>=MAP_H||nx<0||nx>=MAP_W) continue;
+    if(map_[ny][nx]===TILE.WALL) continue;
+    if(nx===player.x&&ny===player.y) continue; // combat handled separately
+    if(!enemies.some(o=>o!==e&&o.x===nx&&o.y===ny)) {e.x=nx;e.y=ny;}
   }
 }
 
 // ══════════════════════════════════════════════════
-//  COMBAT — PANEL
+//  COMBAT
 // ══════════════════════════════════════════════════
-function openCombat(enemy) {
+function openCombat(enemy){
   combatEnemy=enemy; combatPhase='choose';
   document.getElementById('cp-result').classList.remove('show');
   document.getElementById('cp-result').innerHTML='';
@@ -476,193 +678,180 @@ function openCombat(enemy) {
   document.getElementById('combat-panel').classList.add('show');
   render();
 }
-
-function hideCombat() {
+function hideCombat(){
   combatEnemy=null; combatPhase=null;
   document.getElementById('combat-panel').classList.remove('show');
 }
-
-function updateCombatPanel() {
+function updateCombatPanel(){
   const e=combatEnemy;
   document.getElementById('cp-enemy-char').style.color=e.col;
   document.getElementById('cp-enemy-char').textContent=e.char;
   document.getElementById('cp-enemy-name').textContent=e.name;
-  const filled=Math.max(0,Math.round((e.hp/e.maxHp)*8));
+  const f=Math.max(0,Math.round((e.hp/e.maxHp)*8));
   document.getElementById('cp-hp-bar').innerHTML=
-    `<span class="ef">${'█'.repeat(filled)}</span><span class="ee">${'░'.repeat(8-filled)}</span> ${e.hp}hp`;
+    `<span class="ef">${'█'.repeat(f)}</span><span class="ee">${'░'.repeat(8-f)}</span> ${e.hp}hp`;
 }
-
-function doCombatAction(action) {
-  if (combatPhase!=='choose') return;
+function doCombat(action){
+  if(combatPhase!=='choose') return;
   combatPhase='result';
-  const e=combatEnemy;
-  const resultEl=document.getElementById('cp-result');
+  const e=combatEnemy; const res=document.getElementById('cp-result');
   let lines=[];
 
-  if (action==='attack') {
-    // Player hits enemy
-    const pdmg=Math.max(1, player.atk + rand(0,2) - e.def);
+  if(action==='attack'){
+    const pdmg=Math.max(1,player.atk+rand(0,2)-e.def);
     e.hp-=pdmg;
     lines.push(`<span class="cr-dmg">You hit ${e.name} for ${pdmg} dmg.</span>`);
     addLog(`You hit ${e.name} for ${pdmg} dmg.`,'ll-dmg');
-
-    if (e.hp<=0) {
-      lines.push(`<span class="cr-ok">${e.name} is slain!</span>`);
-      addLog(`${e.name} is slain.`);
-      resultEl.innerHTML=lines.join('<br>')+`<br><span style="color:#2a2a2a;font-size:11px">— any key —</span>`;
-      resultEl.classList.add('show');
+    if(e.hp<=0){
+      const coins=rand(e.coins[0],e.coins[1]);
+      player.coins+=coins;
+      lines.push(`<span class="cr-ok">${e.name} slain! +${coins} coins.</span>`);
+      addLog(`${e.name} slain. +${coins} coins.`,'ll-coin');
       enemies=enemies.filter(x=>x!==e);
-      render(); return;
+      showResult(res,lines); render(); return;
     }
-
-    // Enemy counters
-    const edmg=Math.max(1, e.atk + rand(0,1) - player.def);
+    const edmg=Math.max(1,e.atk+rand(0,1)-player.def);
     player.hp-=edmg;
     lines.push(`<span class="cr-dmg">${e.name} hits you for ${edmg} dmg.</span>`);
     addLog(`${e.name} hits you for ${edmg} dmg.`,'ll-dmg');
-
-  } else if (action==='block') {
-    // Player braces — enemy attacks at half damage
-    const edmg=Math.max(1, Math.floor((e.atk + rand(0,1) - player.def) / 2));
+  } else if(action==='block'){
+    const edmg=Math.max(1,Math.floor((e.atk+rand(0,1)-player.def)/2));
     player.hp-=edmg;
-    lines.push(`<span class="cr-block">You brace. ${e.name} hits for ${edmg} dmg (halved).</span>`);
-    addLog(`You block. ${e.name} deals ${edmg} dmg.`,'ll-block');
-
-  } else if (action==='run') {
-    const success=Math.random()<0.6;
-    if (success) {
-      lines.push(`<span class="cr-run">You flee! ${e.name} gives chase.</span>`);
-      addLog(`You flee from ${e.name}.`,'ll-run');
-      resultEl.innerHTML=lines.join('<br>')+`<br><span style="color:#2a2a2a;font-size:11px">— any key —</span>`;
-      resultEl.classList.add('show');
-      hideCombat(); render(); return;
+    lines.push(`<span style="color:#4488cc">You brace. ${e.name} deals ${edmg} dmg (halved).</span>`);
+    addLog(`Blocked. ${e.name} deals ${edmg} dmg.`,'ll-block');
+  } else if(action==='run'){
+    if(Math.random()<0.6){
+      lines.push(`<span style="color:#666">You flee!</span>`);
+      addLog(`Fled from ${e.name}.`,'ll-run');
+      showResult(res,lines); hideCombat(); render(); return;
     } else {
-      const edmg=Math.max(1, e.atk + rand(0,1) - player.def);
+      const edmg=Math.max(1,e.atk+rand(0,1)-player.def);
       player.hp-=edmg;
-      lines.push(`<span class="cr-dmg">Failed to flee! ${e.name} hits you for ${edmg} dmg.</span>`);
+      lines.push(`<span class="cr-dmg">Flee failed! ${e.name} hits for ${edmg} dmg.</span>`);
       addLog(`Flee failed! ${e.name} hits for ${edmg} dmg.`,'ll-dmg');
     }
   }
 
-  // Check player death
-  if (player.hp<=0) {
+  if(player.hp<=0){
     lines.push(`<span style="color:#ff3333;font-weight:bold">You have died.</span>`);
-    resultEl.innerHTML=lines.join('<br>');
-    resultEl.classList.add('show');
+    res.innerHTML=lines.join('<br>'); res.classList.add('show');
     endGame(); return;
   }
-
-  updateCombatPanel();
-  render();
-  resultEl.innerHTML=lines.join('<br>')+`<br><span style="color:#2a2a2a;font-size:11px">— any key —</span>`;
-  resultEl.classList.add('show');
+  updateCombatPanel(); render(); showResult(res,lines);
 }
-
-function continueCombat() {
-  if (combatPhase!=='result') return;
-  if (!combatEnemy||!enemies.includes(combatEnemy)) {
-    hideCombat(); enemyTurn(); render(); return;
-  }
-  // Back to choosing
+function showResult(el,lines){
+  el.innerHTML=lines.join('<br>')+`<br><span style="color:#2a2a2a;font-size:10px">— any key to continue —</span>`;
+  el.classList.add('show');
+}
+function continueCombat(){
+  if(combatPhase!=='result') return;
+  if(!combatEnemy||!enemies.includes(combatEnemy)){hideCombat();enemyTurn();render();return;}
   combatPhase='choose';
   document.getElementById('cp-result').classList.remove('show');
   document.getElementById('cp-result').innerHTML='';
-  updateCombatPanel();
-  render();
+  updateCombatPanel(); render();
 }
 
 // ══════════════════════════════════════════════════
-//  ENEMY AI  (passive movement between fights)
+//  DEATH
 // ══════════════════════════════════════════════════
-function enemyTurn() {
-  for (const e of enemies) {
-    const dx=player.x-e.x, dy=player.y-e.y;
-    let mx=0, my=0;
-    if (Math.abs(dx)>=Math.abs(dy)) mx=dx>0?1:-1; else my=dy>0?1:-1;
-    const nx=e.x+mx, ny=e.y+my;
-    if (ny<0||ny>=ROWS||nx<0||nx>=COLS) continue;
-    if (map[ny][nx]===TILE.WALL) continue;
-    if (nx===player.x&&ny===player.y) continue; // combat handled separately
-    if (!enemies.some(o=>o!==e&&o.x===nx&&o.y===ny)) { e.x=nx; e.y=ny; }
-  }
+function endGame(){
+  dead=true; runOver=true; player.hp=0; render();
+  save.lastRun={outcome:'death',coins:player.coins}; writeSave();
+  addLog('You have died. All run progress lost.','ll-die'); renderLog();
+  document.getElementById('o-title').textContent='You Died';
+  document.getElementById('o-title').className='t-dead';
+  document.getElementById('o-msg').textContent=`Killed in the dungeon. ${player.coins} coins lost.`;
+  document.getElementById('o-coins').textContent='';
+  document.getElementById('overlay').classList.add('show');
 }
 
 // ══════════════════════════════════════════════════
 //  RENDER
 // ══════════════════════════════════════════════════
-function render() { renderStats(); renderMap(); renderLog(); }
+function render(){renderStats();renderMap();renderInv();renderLog();}
 
-function renderStats() {
-  const filled=Math.max(0,Math.round((player.hp/player.maxHp)*10));
-  document.getElementById('s-hp').innerHTML=
-    `<span class="hp-full">${'█'.repeat(filled)}</span>`+
-    `<span class="hp-empty">${'░'.repeat(10-filled)}</span>`+
-    ` ${Math.max(0,player.hp)}/${player.maxHp}`;
-  document.getElementById('s-atk').textContent=player.atk;
-  document.getElementById('s-def').textContent=player.def;
-  document.getElementById('floor-label').textContent=`Floor ${player.floor}`;
+function renderStats(){
+  const f=Math.max(0,Math.round((player.hp/player.maxHp)*8));
+  document.getElementById('sp-hp-bar').innerHTML=
+    `<span class="hp-full">${'█'.repeat(f)}</span><span class="hp-empty">${'░'.repeat(8-f)}</span>`;
+  document.getElementById('sp-hp-num').textContent=`${Math.max(0,player.hp)} / ${player.maxHp}`;
+  document.getElementById('sp-atk').textContent=player.atk;
+  document.getElementById('sp-def').textContent=player.def;
+  document.getElementById('sp-coins-val').textContent=player.coins;
 }
 
-function renderMap() {
-  ctx.fillStyle=C.bg;
-  ctx.fillRect(0,0,cv.width,cv.height);
+function renderMap(){
+  ctx.fillStyle=C.bg; ctx.fillRect(0,0,cv.width,cv.height);
+  const cam=getCam();
   const eMap={},iMap={};
   enemies.forEach(e=>{eMap[e.x+','+e.y]=e;});
   items.forEach(i=>{iMap[i.x+','+i.y]=i;});
   ctx.textBaseline='top';
-  for (let y=0;y<ROWS;y++) {
-    for (let x=0;x<COLS;x++) {
-      const key=x+','+y;
+  for(let vy=0;vy<VH;vy++){
+    for(let vx=0;vx<VW;vx++){
+      const wx=vx+cam.x, wy=vy+cam.y;
+      if(wx<0||wx>=MAP_W||wy<0||wy>=MAP_H) continue;
+      const key=wx+','+wy;
       let ch,col;
-      if (x===player.x&&y===player.y)       { ch='@'; col=C.player; }
-      else if (eMap[key]) { const e=eMap[key]; ch=e.char; col=e.col; }
-      else if (iMap[key]) { const i=iMap[key]; ch=i.char; col=i.col; }
-      else {
-        const t=map[y][x];
-        if (t===TILE.STAIRS) { ch='>'; col=C.stairs; }
-        else if (t===TILE.FLOOR) { ch='.'; col=C.floor; }
-        else { ch='#'; col=C.wall; }
+      if(wx===player.x&&wy===player.y)      {ch='@';col=C.player;}
+      else if(eMap[key]){const e=eMap[key]; ch=e.char;col=e.col;}
+      else if(iMap[key]){const i=iMap[key]; ch=i.char;col=i.col;}
+      else{
+        const t=map_[wy][wx];
+        if(t===TILE.EXIT)  {ch='E';col=C.exit;}
+        else if(t===TILE.FLOOR){ch='.';col=C.floor;}
+        else               {ch='#';col=C.wall;}
       }
       ctx.fillStyle=col;
-      ctx.fillText(ch,x*cellW,y*cellH);
+      ctx.fillText(ch,vx*cellW,vy*cellH);
     }
   }
 }
 
-function renderLog() {
-  document.getElementById('log').innerHTML=msgs.slice(-7).map((m,i,a)=>
-    `<div class="ll ${m.cls||''}" style="${i===a.length-1?'color:#999':''}">› ${m.msg}</div>`
+function renderInv(){
+  const el=document.getElementById('inv-slots');
+  let html='';
+  for(let i=0;i<INV_MAX;i++){
+    const it=inv[i];
+    if(it){
+      html+=`<div class="inv-slot" onclick="useInvSlot(${i})">
+        <span class="inv-slot-num">${i+1}</span>
+        <span class="inv-slot-char" style="color:${it.col}">${it.char}</span>
+        <span class="inv-slot-name">${it.name}</span>
+        <span class="inv-slot-use">[use]</span>
+      </div>`;
+    } else {
+      html+=`<div class="inv-slot empty">
+        <span class="inv-slot-num">${i+1}</span>
+        <span class="inv-slot-char" style="color:#2a2a2a">·</span>
+        <span class="inv-slot-name" style="color:#1e1e1e">empty</span>
+      </div>`;
+    }
+  }
+  el.innerHTML=html;
+}
+
+function renderLog(){
+  document.getElementById('log-bar').innerHTML=msgs.slice(-6).map((m,i,a)=>
+    `<div class="ll ${m.cls||''}" style="${i===a.length-1?'color:#888':''}">› ${m.msg}</div>`
   ).join('');
 }
 
-// ══════════════════════════════════════════════════
-//  LOG / GAME OVER
-// ══════════════════════════════════════════════════
-function addLog(msg,cls='') {
-  msgs.push({msg,cls}); if(msgs.length>20) msgs.shift(); renderLog();
-}
-
-function endGame() {
-  dead=true; player.hp=0; render();
-  document.getElementById('o-title').textContent='You Died';
-  document.getElementById('o-title').className='t-dead';
-  document.getElementById('o-msg').textContent=`Slain on floor ${player.floor}.`;
-  document.getElementById('overlay').classList.add('show');
-}
+function addLog(msg,cls=''){msgs.push({msg,cls});if(msgs.length>30)msgs.shift();renderLog();}
 
 // ══════════════════════════════════════════════════
 //  FULLSCREEN
 // ══════════════════════════════════════════════════
-function toggleFullscreen() {
-  if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+function toggleFullscreen(){
+  if(!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
   else document.exitFullscreen().catch(()=>{});
 }
-document.addEventListener('fullscreenchange',()=>{ measureCell(); renderMap(); });
 
 // ══════════════════════════════════════════════════
-//  GO
+//  BOOT
 // ══════════════════════════════════════════════════
-startGame();
+showMenu();
 </script>
 </body>
 </html>
