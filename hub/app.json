@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "Personal Hub",
+    "slug": "hub",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "scheme": "hub",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0a0a0a"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.personal.hub",
+      "infoPlist": {
+        "NSHealthShareUsageDescription": "Hub liest deine Gesundheitsdaten für personalisiertes Fitness-Coaching.",
+        "NSHealthUpdateUsageDescription": "Hub kann Workouts und Gesundheitsdaten in Apple Health speichern.",
+        "NSCalendarsUsageDescription": "Hub greift auf deinen Kalender und Erinnerungen zu.",
+        "NSRemindersUsageDescription": "Hub synchronisiert deine Aufgaben mit Apple Erinnerungen.",
+        "NSMotionUsageDescription": "Hub nutzt Bewegungsdaten für das Fitness-Tracking."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0a0a0a"
+      },
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-dev-client",
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Die App benötigt Zugriff auf deinen Kalender.",
+          "remindersPermission": "Die App benötigt Zugriff auf deine Erinnerungen."
+        }
+      ],
+      "expo-web-browser"
+    ]
+  }
+}
